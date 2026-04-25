@@ -460,18 +460,31 @@ export function TinyFishAnalyzePanel({ open, onClose, onStartupAdded }: Props) {
             <p className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400">
               Live browser stream
             </p>
-            <p className="text-[10px] text-zinc-500 dark:text-zinc-500">
-              When TinyFish provides a <code className="rounded bg-zinc-200/80 px-1 dark:bg-zinc-800">STREAMING_URL</code>,
-              the agent’s session appears here (some sites may block embedding).
+            <p className="text-[10px] leading-relaxed text-zinc-500 dark:text-zinc-500">
+              When the run exposes a <code className="rounded bg-zinc-200/80 px-1 dark:bg-zinc-800">STREAMING_URL</code>,
+              TinyFish can show the session below. <strong className="font-medium text-zinc-600 dark:text-zinc-300">
+                If the frame shows a blank or “couldn’t load” page, open in a new tab
+              </strong>{" "}
+              — the live view host often blocks embedding (X-Frame-Options), but the same URL works in a full tab.
             </p>
             {streamingUrl ? (
-              <iframe
-                title="TinyFish live browser"
-                className="mt-2 h-full min-h-[280px] w-full flex-1 rounded-xl border border-zinc-200 bg-zinc-900 dark:border-zinc-700"
-                src={streamingUrl}
-                sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"
-                referrerPolicy="no-referrer"
-              />
+              <div className="mt-2 flex min-h-0 flex-1 flex-col gap-2">
+                <a
+                  className="inline-flex w-full items-center justify-center rounded-xl border border-sky-500/40 bg-sky-500/10 px-3 py-2.5 text-center text-sm font-semibold text-sky-800 shadow-sm transition hover:bg-sky-500/20 dark:border-sky-500/30 dark:bg-sky-500/15 dark:text-sky-200 dark:hover:bg-sky-500/25"
+                  href={streamingUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Open live view in new tab
+                </a>
+                <iframe
+                  title="TinyFish live browser"
+                  className="h-full min-h-[240px] w-full flex-1 rounded-xl border border-zinc-200 bg-zinc-900 dark:border-zinc-700"
+                  src={streamingUrl}
+                  allow="fullscreen; display-capture; clipboard-read; clipboard-write; autoplay"
+                  referrerPolicy="no-referrer-when-downgrade"
+                />
+              </div>
             ) : (
               <div className="mt-2 flex min-h-[280px] flex-1 items-center justify-center rounded-xl border border-dashed border-zinc-200 bg-zinc-50/80 px-4 text-center text-sm text-zinc-500 dark:border-zinc-700 dark:bg-zinc-950/40 dark:text-zinc-500">
                 {running
