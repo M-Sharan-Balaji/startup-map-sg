@@ -13,7 +13,8 @@
     "enrich": "tsx scripts/enrich.ts",
     "db:seed": "tsx scripts/seed-from-json.ts",
     "db:migrate": "tsx scripts/apply-migration.ts",
-    "db:cleanup": "tsx scripts/cleanup-bad-startups.ts"
+    "db:cleanup": "tsx scripts/cleanup-bad-startups.ts",
+    "db:apply-fixes": "tsx scripts/apply-supabase-fixes.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.104.1",
