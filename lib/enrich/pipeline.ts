@@ -184,6 +184,9 @@ function locationPriority(source: string | null | undefined): number {
   if (!source) {
     return 0;
   }
+  if (source === "manual") {
+    return 4;
+  }
   if (source === "synthetic_spread") {
     return 1;
   }

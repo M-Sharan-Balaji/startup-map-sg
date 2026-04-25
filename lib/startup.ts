@@ -33,7 +33,14 @@ export type Startup = {
    * How `lat`/`lng` were chosen: real geocode vs deterministic spread in the SG bbox
    * (see `lib/geocode/resolve.ts`).
    */
-  locationSource?: "onemap" | "nominatim_address" | "nominatim_name" | "synthetic_spread" | null;
+  locationSource?:
+    | "onemap"
+    | "nominatim_address"
+    | "nominatim_name"
+    | "synthetic_spread"
+    /** Set in DB / admin; not overwritten by weaker geocode on merge */
+    | "manual"
+    | null;
 };
 
 export type StartupStore = {
