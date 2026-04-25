@@ -20,6 +20,10 @@ function hash32(input: string): number {
   return h >>> 0;
 }
 
+/**
+ * Picks a point inside {@link SG_BOX} from a hash of `key` so markers spread on the map.
+ * **Not geocoding** — unrelated to real address, office cities in text, or “Jurong”; can land anywhere in the box.
+ */
 function placeInSingapore(key: string): { lat: number; lng: number } {
   const h = hash32(key);
   const u = h / 4294967295;
@@ -70,16 +74,42 @@ function toCanonicalOrigin(u: string): string {
   return `${o.protocol}//${o.hostname}`.toLowerCase();
 }
 
+/**
+ * Strips common markdown from scraped copy and caps length for list/map cards.
+ * For a short “blurb” written by a model, add a separate LLM or TinyFish goal step; this is rule-based only.
+ */
+function sanitizeMapDescription(input: string, maxLen = 500): string {
+  let t = input.replace(/\r\n/g, "\n");
+  t = t
+    .split("\n")
+    .map((line) => line.replace(/^#{1,6}\s+/, "").trim())
+    .filter((line) => line.length > 0)
+    .join(" ");
+  t = t.replace(/\*\*([^*]+)\*\*/g, "$1");
+  t = t.replace(/\[([^\]]+)\]\([^)]+\)/g, "$1");
+  t = t.replace(/\s{2,}/g, " ").trim();
+  if (t.length <= maxLen) {
+    return t;
+  }
+  const cut = t.slice(0, maxLen);
+  const last = Math.max(cut.lastIndexOf(". "), cut.lastIndexOf("! "), cut.lastIndexOf("? "));
+  if (last > 100) {
+    return cut.slice(0, last + 1).trim();
+  }
+  return `${cut.trim()}…`;
+}
+
 function snippetDescription(title: string, text?: string, snippet?: string): string {
   const fromPage = (text || "").replace(/\s+/g, " ").trim().slice(0, 500);
-  if (fromPage.length > 40) {
-    return fromPage;
-  }
-  return [title, "", snippet || ""]
-    .join(" ")
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, 500);
+  const raw =
+    fromPage.length > 40
+      ? fromPage
+      : [title, "", snippet || ""]
+          .join(" ")
+          .replace(/\s+/g, " ")
+          .trim()
+          .slice(0, 500);
+  return sanitizeMapDescription(raw, 500);
 }
 
 /**
@@ -209,7 +239,7 @@ function tryExtractStartupFromAgentResult(
       id: slug + "-" + randomUUID().slice(0, 6),
       name: n.slice(0, 200),
       slug,
-      description: d.slice(0, 5000),
+      description: sanitizeMapDescription(d, 2000),
       website,
       stage: "Unknown",
       sectors: sector ? [sector] : ["Unknown"],
