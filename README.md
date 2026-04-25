@@ -8,8 +8,12 @@ Next.js (App Router) app with a [MapLibre](https://maplibre.org/) map, clustered
 
 1. Create a project at [supabase.com](https://supabase.com).
 2. In **SQL Editor**, run the script in [`supabase/migrations/20260426120000_init_startups.sql`](supabase/migrations/20260426120000_init_startups.sql) to create `store_meta` and `startups`.
-3. In **Project Settings → API**, copy the **Project URL** and the **service role** `secret` key (server-only; never use in the browser or commit to git). If your key format changes, the official `service_role` JWT from the same page also works with `@supabase/supabase-js`.
-4. Set `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` in `.env.local` (see `.env.example`).
+3. In **Project Settings → API**, copy the **Project URL** and a **server** key for `SUPABASE_SERVICE_ROLE_KEY` (see below). Never use the **Publishable** key for the server; never commit keys to git.
+4. Set `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` in `.env.local` (see `.env.example`). For **Render**, set the same variables under **Web Service → Environment** and **redeploy** after changing them.
+
+**If you see `Invalid API key`:** On the same API page, use the long **legacy** `service_role` JWT (starts with `eyJ...`) from **Project API keys** as `SUPABASE_SERVICE_ROLE_KEY`, or the **Secret** from **Secret keys** (not the Publishable key). Keys must be copied in full, one line, no extra quotes.
+
+**`TypeError: fetch failed`:** Wrong project URL, project paused, or network/firewall. Open the project URL in a browser; restore the project in the Supabase dashboard if paused.
 5. Seed the database from the repo seed file: `npm run db:seed` (requires env vars from step 4).
 
 ## Setup

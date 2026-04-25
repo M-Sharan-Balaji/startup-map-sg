@@ -16,18 +16,22 @@ export async function readStore(): Promise<StartupStore> {
     .eq("id", 1)
     .maybeSingle();
   if (metaErr) {
-    throw new Error(
-      `Supabase store_meta: ${metaErr.message}. Run the SQL in supabase/migrations in your project.`,
-    );
+    const hint =
+      /Invalid API key|invalid api key|JWT|jwt/i.test(metaErr.message) ?
+        " Fix: In Render, set SUPABASE_SERVICE_ROLE_KEY to the **Secret** key (or legacy **service_role** JWT `eyJ…` from Project Settings → API), not the publishable key. Then run supabase/migrations SQL if tables are missing."
+        : " Run the SQL in supabase/migrations in your Supabase SQL editor if tables are missing.";
+    throw new Error(`Supabase store_meta: ${metaErr.message}.${hint}`);
   }
   const { data: rows, error: rowsErr } = await supabase
     .from("startups")
     .select("*")
     .order("name", { ascending: true });
   if (rowsErr) {
-    throw new Error(
-      `Supabase startups: ${rowsErr.message}. Run the SQL in supabase/migrations in your project.`,
-    );
+    const hint =
+      /Invalid API key|invalid api key|JWT|jwt/i.test(rowsErr.message) ?
+        " Fix: use the **Secret** key or legacy **service_role** JWT in SUPABASE_SERVICE_ROLE_KEY (see README)."
+        : " Run supabase/migrations SQL in Supabase if needed.";
+    throw new Error(`Supabase startups: ${rowsErr.message}.${hint}`);
   }
   const version = meta?.version ?? 1;
   const updatedAt = meta?.updated_at ?? new Date().toISOString();
