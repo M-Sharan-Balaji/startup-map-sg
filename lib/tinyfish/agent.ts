@@ -12,6 +12,7 @@ const startupExtractionSchema = {
     stage: { type: "string" },
     sector_hint: { type: "string" },
     hiring: { type: "boolean" },
+    address_hint: { type: "string" },
   },
   required: ["name", "description"],
   propertyOrdering: [
@@ -21,6 +22,7 @@ const startupExtractionSchema = {
     "stage",
     "sector_hint",
     "hiring",
+    "address_hint",
   ],
 };
 
@@ -44,6 +46,8 @@ export type ExtractedStartup = {
   stage?: string;
   sector_hint?: string;
   hiring?: boolean;
+  /** Singapore or registered/office address as stated on the page, if any. */
+  address_hint?: string;
 };
 
 export async function extractStartupFromPage(
@@ -58,7 +62,7 @@ export async function extractStartupFromPage(
     body: JSON.stringify({
       url,
       goal:
-        "You are on a public company or startup page. Extract the public company or product name, a concise 1–3 sentence description, canonical website, rough funding stage if stated, a primary industry tag, and whether they appear to be hiring on this page.",
+        "You are on a public company or startup page. Extract the public company or product name, a concise 1–3 sentence description, canonical website, rough funding stage if stated, a primary industry tag, and whether they appear to be hiring on this page. If a Singapore street address, registered office, or place of business is clearly stated, put the full line in address_hint; otherwise leave address_hint empty.",
       output_schema: startupExtractionSchema,
       ...tinyfishAutomationFields(),
     }),

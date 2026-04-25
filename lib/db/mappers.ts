@@ -16,6 +16,8 @@ export type StartupRow = {
   linkedin_url: string | null;
   logo_url: string | null;
   hiring: boolean | null;
+  address_text: string | null;
+  location_source: string | null;
 };
 
 export function rowToStartup(r: StartupRow): Startup {
@@ -34,6 +36,8 @@ export function rowToStartup(r: StartupRow): Startup {
     linkedinUrl: r.linkedin_url ?? undefined,
     logoUrl: r.logo_url ?? null,
     hiring: r.hiring ?? undefined,
+    addressText: r.address_text ?? null,
+    locationSource: (r.location_source as Startup["locationSource"]) ?? null,
   };
 }
 
@@ -53,6 +57,8 @@ export function startupToRow(s: Startup): StartupRow {
     linkedin_url: s.linkedinUrl ?? null,
     logo_url: s.logoUrl ?? null,
     hiring: s.hiring ?? null,
+    address_text: s.addressText ?? null,
+    location_source: s.locationSource ?? null,
   };
 }
 

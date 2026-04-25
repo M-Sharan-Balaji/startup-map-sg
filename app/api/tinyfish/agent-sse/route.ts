@@ -14,6 +14,7 @@ const DEFAULT_GOAL = `You are a startup analyst. On this public website, explore
 2) In 2–4 sentences, describe what they do, who it is for, and the main value proposition.
 3) Note any visible signals: funding, investors, team size, hiring, or location—only if clearly stated.
 4) List the primary product areas or industry tags in a short line.
+5) If you find a specific Singapore address, registered office, or “place of business” line, add one line exactly in this form (copy the address as written, no extra commentary): ADDRESS: <full address>
 If something is not visible, say "not shown on the site" for that part. Be factual and avoid guessing.`;
 
 

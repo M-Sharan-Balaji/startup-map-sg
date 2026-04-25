@@ -8,30 +8,7 @@ import { getHostnameKey, type Stage, type Startup } from "@/lib/startup";
 import { makeUniqueSlug, slugify } from "@/lib/slugify";
 import { readStore, writeStore } from "@/lib/store";
 import { parsePublicWebsiteUrl } from "@/lib/websiteUrl";
-
-const SG_BOX = { south: 1.15, west: 103.6, north: 1.48, east: 104.1 };
-
-function hash32(input: string): number {
-  let h = 2166136261;
-  for (let i = 0; i < input.length; i++) {
-    h ^= input.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return h >>> 0;
-}
-
-/**
- * Picks a point inside {@link SG_BOX} from a hash of `key` so markers spread on the map.
- * **Not geocoding** — unrelated to real address, office cities in text, or “Jurong”; can land anywhere in the box.
- */
-function placeInSingapore(key: string): { lat: number; lng: number } {
-  const h = hash32(key);
-  const u = h / 4294967295;
-  const v = (h % 100000) / 100000;
-  const lat = SG_BOX.south + (SG_BOX.north - SG_BOX.south) * (0.2 + 0.8 * u);
-  const lng = SG_BOX.west + (SG_BOX.east - SG_BOX.west) * (0.1 + 0.9 * v);
-  return { lat, lng };
-}
+import { resolveStartupGeolocation } from "@/lib/geocode/resolve";
 
 function normalizeStage(s: string | undefined): Stage {
   if (!s) return "Unknown";
@@ -197,15 +174,37 @@ function collectUniqueUrls(
   return out;
 }
 
+function parseAddressLineFromText(s: string): string | null {
+  const m = s.match(/^\s*ADDRESS:\s*(.+)$/im);
+  const t = m?.[1]?.trim();
+  return t && t.length > 3 ? t : null;
+}
+
+function locationPriority(source: string | null | undefined): number {
+  if (!source) {
+    return 0;
+  }
+  if (source === "synthetic_spread") {
+    return 1;
+  }
+  if (source === "nominatim_name") {
+    return 2;
+  }
+  if (source === "nominatim_address" || source === "onemap") {
+    return 3;
+  }
+  return 0;
+}
+
 /**
  * Build a row from the TinyFish **live** agent COMPLETE payload. Shapes differ by run;
  * this avoids a second Fetch/extract that often fails for the same URL after a successful run.
  */
-function tryExtractStartupFromAgentResult(
+async function tryExtractStartupFromAgentResult(
   fullUrl: string,
   raw: unknown,
   existing: Startup[],
-): Startup | null {
+): Promise<Startup | null> {
   if (raw == null) {
     return null;
   }
@@ -218,12 +217,13 @@ function tryExtractStartupFromAgentResult(
     }
   })();
 
-  const fromNameAndDescription = (
+  const fromNameAndDescription = async (
     name: string,
     description: string,
     sector?: string,
     hiringHint?: boolean,
-  ): Startup | null => {
+    addressHint?: string | null,
+  ): Promise<Startup | null> => {
     const n = name.trim();
     const d = description.trim();
     if (n.length < 2) {
@@ -233,7 +233,13 @@ function tryExtractStartupFromAgentResult(
       return null;
     }
     const website = domainFromPage(fullUrl, undefined);
-    const { lat, lng } = placeInSingapore(website);
+    const hint =
+      (addressHint && addressHint.length > 3 ? addressHint : null) ?? parseAddressLineFromText(d);
+    const g = await resolveStartupGeolocation({
+      name: n,
+      website,
+      addressHint: hint,
+    });
     const slug = makeUniqueSlug(slugify(n), new Set(existing.map((s) => s.slug)));
     return {
       id: slug + "-" + randomUUID().slice(0, 6),
@@ -243,8 +249,10 @@ function tryExtractStartupFromAgentResult(
       website,
       stage: "Unknown",
       sectors: sector ? [sector] : ["Unknown"],
-      lat,
-      lng,
+      lat: g.lat,
+      lng: g.lng,
+      addressText: g.addressText,
+      locationSource: g.locationSource,
       sourceUrl: fullUrl,
       lastEnrichedAt: null,
       hiring: Boolean(hiringHint),
@@ -265,11 +273,12 @@ function tryExtractStartupFromAgentResult(
         .map((l) => l.trim())
         .filter(Boolean);
       const title = (lines[0] || hostLabel).slice(0, 120);
-      return fromNameAndDescription(
+      return await fromNameAndDescription(
         title,
         s,
         undefined,
         /\bhiring\b/i.test(s) || /careers?/i.test(s),
+        parseAddressLineFromText(s),
       );
     }
   }
@@ -293,7 +302,15 @@ function tryExtractStartupFromAgentResult(
 
   candidate = unwrap(candidate, 4);
 
-  const pick = (o: unknown): { name?: string; description?: string; sector?: string; hiring?: boolean } => {
+  const pick = (
+    o: unknown,
+  ): {
+    name?: string;
+    description?: string;
+    sector?: string;
+    hiring?: boolean;
+    addressHint?: string;
+  } => {
     if (!o || typeof o !== "object") {
       return {};
     }
@@ -324,27 +341,43 @@ function tryExtractStartupFromAgentResult(
       typeof x.hiring === "boolean" ?
         x.hiring
       : undefined;
-    return { name: name?.trim(), description: description?.trim(), sector, hiring };
+    const addressHint = [
+      x.registered_address,
+      x.registeredAddress,
+      x.registered_office,
+      x.office_address,
+      x.incorporation_address,
+      x.address,
+      x.sg_address,
+      x.full_address,
+      x.address_hint,
+    ]
+      .map((v) => (typeof v === "string" ? v.trim() : ""))
+      .find((a) => a.length > 4);
+    return { name: name?.trim(), description: description?.trim(), sector, hiring, addressHint };
   };
 
   const picked = pick(candidate);
-  const { name, description, sector, hiring: hiringFlag } = picked;
+  const { name, description, sector, hiring: hiringFlag, addressHint: pickedAddress } = picked;
   if (!name || !description) {
     if (typeof candidate === "object" && candidate !== null) {
       const json = JSON.stringify(candidate);
       if (json.length > 80) {
-        return fromNameAndDescription(
+        return await fromNameAndDescription(
           hostLabel,
           `Summary from live agent result:\n${json.slice(0, 4000)}`,
           undefined,
           hiringFlag,
+          parseAddressLineFromText(`Summary from live agent result:\n${json.slice(0, 4000)}`),
         );
       }
     }
     return null;
   }
 
-  return fromNameAndDescription(name, description, sector, hiringFlag);
+  const fromDesc = parseAddressLineFromText(description);
+  const addressHint = pickedAddress || fromDesc;
+  return await fromNameAndDescription(name, description, sector, hiringFlag, addressHint);
 }
 
 function mergeByHostname(startups: Startup[], incoming: Startup): { list: Startup[]; updated: boolean } {
@@ -362,6 +395,18 @@ function mergeByHostname(startups: Startup[], incoming: Startup): { list: Startu
   cur.sourceUrl = incoming.sourceUrl || cur.sourceUrl;
   cur.hiring = Boolean(cur.hiring || incoming.hiring);
   cur.lastEnrichedAt = now;
+  const pIn = locationPriority(incoming.locationSource);
+  const pCur = locationPriority(cur.locationSource);
+  if (pIn > pCur) {
+    cur.lat = incoming.lat;
+    cur.lng = incoming.lng;
+    cur.locationSource = incoming.locationSource;
+    if (incoming.addressText) {
+      cur.addressText = incoming.addressText;
+    }
+  } else if (incoming.addressText && !cur.addressText) {
+    cur.addressText = incoming.addressText;
+  }
   const next = [...startups];
   next[idx] = cur;
   return { list: next, updated: true };
@@ -438,7 +483,11 @@ export async function runEnrichPipeline(
         }
         if (extracted) {
           const website = domainFromPage(b.url, extracted.website);
-          const { lat, lng } = placeInSingapore(website);
+          const g = await resolveStartupGeolocation({
+            name: extracted.name,
+            website,
+            addressHint: extracted.address_hint,
+          });
           const id = makeUniqueSlug(
             slugify(extracted.name),
             new Set(list.map((s) => s.slug)),
@@ -454,8 +503,10 @@ export async function runEnrichPipeline(
             website,
             stage: normalizeStage(extracted.stage),
             sectors,
-            lat,
-            lng,
+            lat: g.lat,
+            lng: g.lng,
+            addressText: g.addressText,
+            locationSource: g.locationSource,
             sourceUrl: b.url,
             lastEnrichedAt: null,
             hiring: Boolean(extracted.hiring),
@@ -497,7 +548,7 @@ export async function runEnrichPipeline(
       } catch {
         continue;
       }
-      const { lat, lng } = placeInSingapore(website);
+      const g = await resolveStartupGeolocation({ name, website, addressHint: null });
       const slug = makeUniqueSlug(
         slugify(name),
         new Set(list.map((s) => s.slug)),
@@ -510,8 +561,10 @@ export async function runEnrichPipeline(
         website,
         stage: "Unknown" as const,
         sectors: ["Unknown"],
-        lat,
-        lng,
+        lat: g.lat,
+        lng: g.lng,
+        addressText: g.addressText,
+        locationSource: g.locationSource,
         sourceUrl: page.url,
         lastEnrichedAt: null,
         hiring: inferHiringFromPageText({
@@ -603,7 +656,7 @@ export async function mergeOneFromWebsiteUrl(
   }
 
   if (options?.agentResult !== undefined && options.agentResult !== null) {
-    const fromAgent = tryExtractStartupFromAgentResult(
+    const fromAgent = await tryExtractStartupFromAgentResult(
       fullUrl,
       options.agentResult,
       store.startups,
@@ -630,7 +683,11 @@ export async function mergeOneFromWebsiteUrl(
       return null;
     }
     const website = domainFromPage(fullUrl, extracted.website);
-    const { lat, lng } = placeInSingapore(website);
+    const g = await resolveStartupGeolocation({
+      name: extracted.name,
+      website,
+      addressHint: extracted.address_hint,
+    });
     const slug = makeUniqueSlug(
       slugify(extracted.name),
       new Set(list.map((s) => s.slug)),
@@ -644,8 +701,10 @@ export async function mergeOneFromWebsiteUrl(
       website,
       stage: normalizeStage(extracted.stage),
       sectors,
-      lat,
-      lng,
+      lat: g.lat,
+      lng: g.lng,
+      addressText: g.addressText,
+      locationSource: g.locationSource,
       sourceUrl: fullUrl,
       lastEnrichedAt: null,
       hiring: Boolean(extracted.hiring),
@@ -671,7 +730,7 @@ export async function mergeOneFromWebsiteUrl(
     if (desc.replace(/\s/g, "").length < 4 && (text || "").replace(/\s/g, "").length < 8) {
       return null;
     }
-    const { lat, lng } = placeInSingapore(website);
+    const g = await resolveStartupGeolocation({ name, website, addressHint: null });
     const slug = makeUniqueSlug(
       slugify(name),
       new Set(list.map((s) => s.slug)),
@@ -684,8 +743,10 @@ export async function mergeOneFromWebsiteUrl(
       website,
       stage: "Unknown" as const,
       sectors: ["Unknown"],
-      lat,
-      lng,
+      lat: g.lat,
+      lng: g.lng,
+      addressText: g.addressText,
+      locationSource: g.locationSource,
       sourceUrl: page.url,
       lastEnrichedAt: null,
       hiring: inferHiringFromPageText({

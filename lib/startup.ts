@@ -27,6 +27,13 @@ export type Startup = {
   hiring?: boolean;
   /** If set, used on the map; otherwise a favicon is derived from `website`. */
   logoUrl?: string | null;
+  /** Resolved display address when geocoding succeeded; otherwise null/omitted. */
+  addressText?: string | null;
+  /**
+   * How `lat`/`lng` were chosen: real geocode vs deterministic spread in the SG bbox
+   * (see `lib/geocode/resolve.ts`).
+   */
+  locationSource?: "onemap" | "nominatim_address" | "nominatim_name" | "synthetic_spread" | null;
 };
 
 export type StartupStore = {

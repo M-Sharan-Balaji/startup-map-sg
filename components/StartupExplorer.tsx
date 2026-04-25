@@ -289,6 +289,12 @@ export function StartupExplorer() {
                 <dt className="w-20 shrink-0">Sectors</dt>
                 <dd className="text-zinc-800 dark:text-zinc-200">{selected.sectors.join(", ")}</dd>
               </div>
+              {selected.addressText && (
+                <div className="flex gap-2">
+                  <dt className="w-20 shrink-0">Address</dt>
+                  <dd className="text-zinc-800 dark:text-zinc-200">{selected.addressText}</dd>
+                </div>
+              )}
               {selected.hiring && (
                 <div className="flex gap-2">
                   <dt className="w-20 shrink-0">Hiring</dt>
