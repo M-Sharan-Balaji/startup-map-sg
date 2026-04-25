@@ -1,8 +1,11 @@
-import "dotenv/config";
+import { config } from "dotenv";
 import fs from "node:fs";
 import path from "node:path";
 
 import { writeStore } from "../lib/store";
+
+config({ path: path.join(process.cwd(), ".env") });
+config({ path: path.join(process.cwd(), ".env.local"), override: true });
 import type { StartupStore } from "../lib/startup";
 
 /**

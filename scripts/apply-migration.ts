@@ -12,8 +12,9 @@ import pg from "pg";
 const { Client } = pg;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-config({ path: path.join(__dirname, "..", ".env.local") });
-config({ path: path.join(__dirname, "..", ".env") });
+const root = path.join(__dirname, "..");
+config({ path: path.join(root, ".env") });
+config({ path: path.join(root, ".env.local"), override: true });
 
 const url = process.env.DATABASE_URL;
 if (!url) {
