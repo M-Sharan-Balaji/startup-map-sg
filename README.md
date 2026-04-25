@@ -65,7 +65,7 @@ Set `TINYFISH_API_KEY` in `.env.local` (see `.env.example`). Do not commit real 
 
 - `GET /api/startups` — read store; query params: `q`, `stage`, `sector`, `hiring` (`1` / `0`).
 - `GET /api/startups/lookup?url=…` — validate a public URL and return whether the host is **already in the map** (used by the Add your startup form). No API key.
-- `POST /api/startups/merge-one` — merge one company by website into Supabase. If the host is already in the store, returns `alreadyOnMap: true` and **does not** call TinyFish. Otherwise uses Fetch (and a structured-extract fallback) and needs `TINYFISH_API_KEY` on the server.
+- `POST /api/startups/merge-one` — JSON: `{ "url": "https://…" }`. Optional: `{ "agentResult": … }` (the live agent COMPLETE payload from the Add startup flow) so the server can save **without** a second page Fetch. If the host is already in the store, returns `alreadyOnMap: true` and **does not** call TinyFish. Otherwise it tries the agent result first, then Fetch, then a structured-extract run; `TINYFISH_API_KEY` is required on the server for Fetch/extract.
 - `POST /api/admin/enrich` — run enrichment (requires `ENRICH_SECRET` and `TINYFISH_API_KEY`). JSON body: `{ "query": "Singapore proptech startup", "maxSearchPages": 2, "useAgent": false, "maxFetchUrls": 20 }`.
 
 ## CLI enrichment

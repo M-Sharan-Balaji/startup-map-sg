@@ -232,6 +232,8 @@ export function TinyFishAnalyzePanel({ open, onClose, onMergeSuccess }: Props) {
             } else {
               appendLog("Run completed", "ok");
               const site = url.trim();
+              const evRecord = ev as Record<string, unknown>;
+              const liveAgentResult = evRecord.result ?? evRecord.output ?? evRecord.data;
               if (site) {
                 setMapSave("saving");
                 void (async () => {
@@ -239,7 +241,11 @@ export function TinyFishAnalyzePanel({ open, onClose, onMergeSuccess }: Props) {
                     const res = await fetch("/api/startups/merge-one", {
                       method: "POST",
                       headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ url: site }),
+                      body: JSON.stringify({
+                        url: site,
+                        // Lets the server build the row from the live run (avoids a second Fetch that often fails)
+                        agentResult: liveAgentResult !== undefined ? liveAgentResult : undefined,
+                      }),
                     });
                     const data = (await res.json()) as {
                       error?: string;

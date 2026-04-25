@@ -9,7 +9,7 @@ export const runtime = "nodejs";
  * If the host is already in the map, returns `alreadyOnMap: true` without calling TinyFish.
  */
 export async function POST(request: Request) {
-  let body: { url?: string };
+  let body: { url?: string; agentResult?: unknown };
   try {
     body = await request.json();
   } catch {
@@ -20,7 +20,7 @@ export async function POST(request: Request) {
   }
   let result: Awaited<ReturnType<typeof mergeOneFromWebsiteUrl>>;
   try {
-    result = await mergeOneFromWebsiteUrl(body.url);
+    result = await mergeOneFromWebsiteUrl(body.url, { agentResult: body.agentResult });
   } catch (e) {
     return NextResponse.json(
       { error: (e as Error).message },

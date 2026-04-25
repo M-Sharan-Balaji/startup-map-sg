@@ -167,6 +167,156 @@ function collectUniqueUrls(
   return out;
 }
 
+/**
+ * Build a row from the TinyFish **live** agent COMPLETE payload. Shapes differ by run;
+ * this avoids a second Fetch/extract that often fails for the same URL after a successful run.
+ */
+function tryExtractStartupFromAgentResult(
+  fullUrl: string,
+  raw: unknown,
+  existing: Startup[],
+): Startup | null {
+  if (raw == null) {
+    return null;
+  }
+
+  const hostLabel = (() => {
+    try {
+      return new URL(fullUrl).hostname.replace(/^www\./i, "");
+    } catch {
+      return "Unknown";
+    }
+  })();
+
+  const fromNameAndDescription = (
+    name: string,
+    description: string,
+    sector?: string,
+    hiringHint?: boolean,
+  ): Startup | null => {
+    const n = name.trim();
+    const d = description.trim();
+    if (n.length < 2) {
+      return null;
+    }
+    if (d.replace(/\s/g, "").length < 8) {
+      return null;
+    }
+    const website = domainFromPage(fullUrl, undefined);
+    const { lat, lng } = placeInSingapore(website);
+    const slug = makeUniqueSlug(slugify(n), new Set(existing.map((s) => s.slug)));
+    return {
+      id: slug + "-" + randomUUID().slice(0, 6),
+      name: n.slice(0, 200),
+      slug,
+      description: d.slice(0, 5000),
+      website,
+      stage: "Unknown",
+      sectors: sector ? [sector] : ["Unknown"],
+      lat,
+      lng,
+      sourceUrl: fullUrl,
+      lastEnrichedAt: null,
+      hiring: Boolean(hiringHint),
+    };
+  };
+
+  let candidate: unknown = raw;
+  if (typeof raw === "string") {
+    const s = raw.trim();
+    if (s.length < 12) {
+      return null;
+    }
+    try {
+      candidate = JSON.parse(s) as unknown;
+    } catch {
+      const lines = s
+        .split("\n")
+        .map((l) => l.trim())
+        .filter(Boolean);
+      const title = (lines[0] || hostLabel).slice(0, 120);
+      return fromNameAndDescription(
+        title,
+        s,
+        undefined,
+        /\bhiring\b/i.test(s) || /careers?/i.test(s),
+      );
+    }
+  }
+
+  const unwrap = (o: unknown, depth: number): unknown => {
+    if (depth < 0 || o == null || typeof o !== "object") {
+      return o;
+    }
+    const r = o as Record<string, unknown>;
+    if (r.result != null) {
+      return unwrap(r.result, depth - 1);
+    }
+    if (r.data != null && typeof r.data === "object") {
+      return unwrap(r.data, depth - 1);
+    }
+    if (r.output != null) {
+      return unwrap(r.output, depth - 1);
+    }
+    return o;
+  };
+
+  candidate = unwrap(candidate, 4);
+
+  const pick = (o: unknown): { name?: string; description?: string; sector?: string; hiring?: boolean } => {
+    if (!o || typeof o !== "object") {
+      return {};
+    }
+    const x = o as Record<string, unknown>;
+    const name = [x.name, x.company, x.title, x.company_name, x.companyName, x.brand]
+      .map((v) => (typeof v === "string" ? v : undefined))
+      .find((s) => s && s.trim().length > 1);
+    const description = [
+      x.description,
+      x.summary,
+      x.overview,
+      x.text,
+      x.content,
+      x.body,
+      x.biography,
+      x.bio,
+      x.value_proposition,
+    ]
+      .map((v) => (typeof v === "string" ? v : undefined))
+      .find((s) => s && s.replace(/\s/g, "").length > 8);
+    const sector =
+      typeof x.sector === "string" ?
+        x.sector
+      : typeof x.sector_hint === "string" ?
+        x.sector_hint
+      : undefined;
+    const hiring =
+      typeof x.hiring === "boolean" ?
+        x.hiring
+      : undefined;
+    return { name: name?.trim(), description: description?.trim(), sector, hiring };
+  };
+
+  const picked = pick(candidate);
+  const { name, description, sector, hiring: hiringFlag } = picked;
+  if (!name || !description) {
+    if (typeof candidate === "object" && candidate !== null) {
+      const json = JSON.stringify(candidate);
+      if (json.length > 80) {
+        return fromNameAndDescription(
+          hostLabel,
+          `Summary from live agent result:\n${json.slice(0, 4000)}`,
+          undefined,
+          hiringFlag,
+        );
+      }
+    }
+    return null;
+  }
+
+  return fromNameAndDescription(name, description, sector, hiringFlag);
+}
+
 function mergeByHostname(startups: Startup[], incoming: Startup): { list: Startup[]; updated: boolean } {
   const key = getHostnameKey(incoming.website);
   const idx = startups.findIndex((s) => getHostnameKey(s.website) === key);
@@ -375,12 +525,24 @@ export type MergeOneResult =
   | { ok: true; created: boolean; name: string; alreadyOnMap?: boolean }
   | { ok: false; error: string };
 
+export type MergeOneOptions = {
+  /**
+   * Raw `result` from the live TinyFish agent COMPLETE SSE event.
+   * When set, we try to build a row from this first (avoids a second Fetch that often fails).
+   */
+  agentResult?: unknown;
+};
+
 /**
  * Fetches a single public URL and merges a startup into the JSON store (same heuristics as enrich Fetch path).
  * If Fetch returns nothing, falls back to a structured `extractStartupFromPage` run.
+ * When `options.agentResult` is set, that path is tried first.
  * Used by “Add your startup” after the live agent completes so the map actually updates.
  */
-export async function mergeOneFromWebsiteUrl(raw: string): Promise<MergeOneResult> {
+export async function mergeOneFromWebsiteUrl(
+  raw: string,
+  options?: MergeOneOptions,
+): Promise<MergeOneResult> {
   const p = parsePublicWebsiteUrl(raw);
   if (!p.ok) {
     return { ok: false, error: p.error };
@@ -408,6 +570,20 @@ export async function mergeOneFromWebsiteUrl(raw: string): Promise<MergeOneResul
       error:
         "TINYFISH_API_KEY is not set (or is only whitespace) on the server. Adding a company uses TinyFish (Fetch API) to read the public page—this is separate from Supabase. Set TINYFISH_API_KEY in Render → Environment and redeploy, like local .env. GET /api/health shows which keys the server can see (names only).",
     };
+  }
+
+  if (options?.agentResult !== undefined && options.agentResult !== null) {
+    const fromAgent = tryExtractStartupFromAgentResult(
+      fullUrl,
+      options.agentResult,
+      store.startups,
+    );
+    if (fromAgent) {
+      const m = mergeByHostname(store.startups, fromAgent);
+      const nextList = m.list;
+      await writeStore({ ...store, version: 1, startups: nextList });
+      return { ok: true, created: !m.updated, name: fromAgent.name };
+    }
   }
 
   let list = store.startups;
