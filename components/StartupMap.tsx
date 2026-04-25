@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Map, {
   Layer,
   type MapLayerMouseEvent,
@@ -134,9 +134,12 @@ function loadLogosOnMap(map: MapLibreMap, startups: Startup[]): void {
 type Props = {
   startups: Startup[];
   onSelect: (s: Startup | null) => void;
+  /** When set, pan/zoom the map to this startup once (e.g. after it was added from the panel). */
+  mapFocusStartupId?: string | null;
+  onMapFocusComplete?: () => void;
 };
 
-export function StartupMap({ startups, onSelect }: Props) {
+export function StartupMap({ startups, onSelect, mapFocusStartupId, onMapFocusComplete }: Props) {
   const { theme } = useTheme();
   const data = useMemo(() => toGeoJson(startups), [startups]);
   const [cursor, setCursor] = useState<string>("grab");
@@ -147,6 +150,33 @@ export function StartupMap({ startups, onSelect }: Props) {
   const onMapLoad = useCallback((e: { target: MapLibreMap }) => {
     setMap(e.target);
   }, []);
+
+  const lastFocusId = useRef<string | null>(null);
+  useEffect(() => {
+    if (!mapFocusStartupId) {
+      lastFocusId.current = null;
+    }
+  }, [mapFocusStartupId]);
+
+  useEffect(() => {
+    if (!map || !mapFocusStartupId) {
+      return;
+    }
+    if (lastFocusId.current === mapFocusStartupId) {
+      return;
+    }
+    const s = startups.find((x) => x.id === mapFocusStartupId);
+    if (!s) {
+      return;
+    }
+    lastFocusId.current = mapFocusStartupId;
+    map.easeTo({
+      center: [s.lng, s.lat],
+      zoom: Math.max(map.getZoom(), 14),
+      duration: 900,
+    });
+    onMapFocusComplete?.();
+  }, [map, mapFocusStartupId, startups, onMapFocusComplete]);
 
   useEffect(() => {
     if (!map || startups.length === 0) {

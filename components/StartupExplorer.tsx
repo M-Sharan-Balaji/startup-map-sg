@@ -24,9 +24,13 @@ export function StartupExplorer() {
   const [hiringOnly, setHiringOnly] = useState(false);
   const [selected, setSelected] = useState<Startup | null>(null);
   const [analyzeOpen, setAnalyzeOpen] = useState(false);
+  /** Bump when opening the panel so a new dialog session clears URL-run lock. */
+  const [analyzePanelKey, setAnalyzePanelKey] = useState(0);
+  /** Clear after map finishes flying so the same id can be focused again later. */
+  const [mapFocusStartupId, setMapFocusStartupId] = useState<string | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (): Promise<Startup[] | null> => {
     setError(null);
     try {
       setLoading(true);
@@ -34,12 +38,48 @@ export function StartupExplorer() {
       if (!res.ok) throw new Error(await res.text());
       const data = (await res.json()) as ApiResponse;
       setAll(data.startups);
+      return data.startups;
     } catch (e) {
       setError((e as Error).message);
+      return null;
     } finally {
       setLoading(false);
     }
   }, []);
+
+  const hostKey = (u: string) => {
+    try {
+      return new URL(u.startsWith("http") ? u : `https://${u}`).hostname.replace(/^www\./i, "").toLowerCase();
+    } catch {
+      return "";
+    }
+  };
+
+  const clearMapFocus = useCallback(() => {
+    setMapFocusStartupId(null);
+  }, []);
+
+  const onMergeSuccessFromPanel = useCallback(
+    async (info: { websiteUrl: string; name: string; alreadyOnMap: boolean }) => {
+      setQ("");
+      setStage("");
+      setSector("");
+      setHiringOnly(false);
+      const list = await load();
+      if (!list || list.length === 0) {
+        return;
+      }
+      const want = hostKey(info.websiteUrl);
+      const found =
+        (want ? list.find((s) => hostKey(s.website) === want) : undefined) ||
+        list.find((s) => s.name.toLowerCase() === info.name.toLowerCase());
+      if (found) {
+        setSelected(found);
+        setMapFocusStartupId(found.id);
+      }
+    },
+    [load],
+  );
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -101,7 +141,10 @@ export function StartupExplorer() {
             <span className="text-[11px] text-zinc-500 dark:text-zinc-400">Founders</span>
             <button
               type="button"
-              onClick={() => setAnalyzeOpen(true)}
+              onClick={() => {
+                setAnalyzePanelKey((k) => k + 1);
+                setAnalyzeOpen(true);
+              }}
               className="rounded-lg border border-sky-200 bg-gradient-to-b from-sky-50 to-white px-3 py-1.5 text-sm font-semibold text-sky-900 shadow-sm shadow-sky-900/5 transition hover:border-sky-300 hover:from-sky-100 dark:border-sky-800 dark:from-sky-950/80 dark:to-zinc-900 dark:text-sky-100 dark:hover:border-sky-700"
             >
               Add your startup
@@ -210,7 +253,12 @@ export function StartupExplorer() {
               </p>
             </div>
           )}
-          <StartupMap startups={filtered} onSelect={setSelected} />
+          <StartupMap
+            startups={filtered}
+            onSelect={setSelected}
+            mapFocusStartupId={mapFocusStartupId}
+            onMapFocusComplete={clearMapFocus}
+          />
         </div>
 
         {selected && (
@@ -281,9 +329,10 @@ export function StartupExplorer() {
         )}
       </div>
       <TinyFishAnalyzePanel
+        key={analyzePanelKey}
         open={analyzeOpen}
         onClose={() => setAnalyzeOpen(false)}
-        onStartupAdded={load}
+        onMergeSuccess={onMergeSuccessFromPanel}
       />
     </div>
   );

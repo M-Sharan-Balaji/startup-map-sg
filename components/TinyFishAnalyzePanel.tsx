@@ -9,18 +9,28 @@ import {
 } from "@/lib/parseSseText";
 import { parsePublicWebsiteUrl } from "@/lib/websiteUrl";
 
+export type MergeSuccessInfo = {
+  websiteUrl: string;
+  name: string;
+  alreadyOnMap: boolean;
+};
+
 type Props = {
   open: boolean;
   onClose: () => void;
-  /** Refetch list/map data after a successful run adds a row to the store */
-  onStartupAdded?: () => void;
+  /**
+   * After merge-one succeeds: refetch, focus map, close dialog. Return a Promise if async.
+   */
+  onMergeSuccess?: (info: MergeSuccessInfo) => void | Promise<void>;
 };
 
 type LogLine = { t: string; text: string; kind: "info" | "error" | "ok" };
 
-export function TinyFishAnalyzePanel({ open, onClose, onStartupAdded }: Props) {
+export function TinyFishAnalyzePanel({ open, onClose, onMergeSuccess }: Props) {
   const [url, setUrl] = useState("");
   const [running, setRunning] = useState(false);
+  /** Set when the live SSE stream has started for `url` (user must change URL or get a new dialog to run again). */
+  const [streamStartedForUrl, setStreamStartedForUrl] = useState<string | null>(null);
   const [streamingUrl, setStreamingUrl] = useState<string | null>(null);
   const [runId, setRunId] = useState<string | null>(null);
   const [log, setLog] = useState<LogLine[]>([]);
@@ -72,6 +82,8 @@ export function TinyFishAnalyzePanel({ open, onClose, onStartupAdded }: Props) {
   }, []);
 
   const localUrl = useMemo(() => parsePublicWebsiteUrl(url.trim()), [url]);
+  const runLockedForCurrentUrl =
+    streamStartedForUrl !== null && streamStartedForUrl === url.trim();
 
   useEffect(() => {
     if (!open) {
@@ -173,6 +185,8 @@ export function TinyFishAnalyzePanel({ open, onClose, onStartupAdded }: Props) {
         setRunning(false);
         return;
       }
+      // Lock out a second run for this URL only after the live stream has actually started
+      setStreamStartedForUrl(url.trim());
       const reader = res.body.getReader();
       const dec = new TextDecoder();
       appendLog("Connected — the agent is exploring your public site", "ok");
@@ -241,24 +255,33 @@ export function TinyFishAnalyzePanel({ open, onClose, onStartupAdded }: Props) {
                         name: String(data.name || "Your startup"),
                         alreadyOnMap: already,
                       });
-                      onStartupAdded?.();
                       if (already) {
                         appendLog(
                           "This site is already on the map — we didn’t create a duplicate.",
                           "ok",
                         );
                       } else {
-                        appendLog(
-                          "Added to the map — look for it in the sidebar or on the map.",
-                          "ok",
-                        );
+                        appendLog("Added to the map — opening…", "ok");
                       }
+                      const info: MergeSuccessInfo = {
+                        websiteUrl: site,
+                        name: String(data.name || "Your startup"),
+                        alreadyOnMap: already,
+                      };
+                      try {
+                        await Promise.resolve(onMergeSuccess?.(info));
+                      } catch {
+                        /* parent handles */
+                      }
+                      onClose();
                     } else {
+                      setStreamStartedForUrl(null);
                       const msg = data.error || res.statusText;
                       setMapSave({ kind: "err", message: msg });
                       appendLog(`Map was not updated: ${msg}`, "error");
                     }
                   } catch (e) {
+                    setStreamStartedForUrl(null);
                     const m = (e as Error).message;
                     setMapSave({ kind: "err", message: m });
                     appendLog(`Map was not updated: ${m}`, "error");
@@ -282,7 +305,7 @@ export function TinyFishAnalyzePanel({ open, onClose, onStartupAdded }: Props) {
       setRunning(false);
       abortRef.current = null;
     }
-  }, [appendLog, onStartupAdded, reset, url]);
+  }, [appendLog, onClose, onMergeSuccess, reset, url]);
 
   if (!open) {
     return null;
@@ -417,12 +440,21 @@ export function TinyFishAnalyzePanel({ open, onClose, onStartupAdded }: Props) {
             )}
             <button
               type="button"
-              className="mt-4 w-full rounded-xl bg-gradient-to-r from-sky-600 to-sky-700 px-3 py-3 text-sm font-semibold text-white shadow-md shadow-sky-900/20 transition hover:from-sky-500 hover:to-sky-600 disabled:cursor-not-allowed disabled:opacity-50 dark:from-sky-500 dark:to-sky-600 dark:hover:from-sky-400 dark:hover:to-sky-500"
-              disabled={running || !localUrl.ok}
+              className="mt-4 w-full rounded-xl bg-gradient-to-r from-sky-600 to-sky-700 px-3 py-3 text-sm font-semibold text-white shadow-md shadow-sky-900/20 transition hover:from-sky-500 hover:to-sky-600 disabled:cursor-not-allowed disabled:opacity-45 dark:from-sky-500 dark:to-sky-600 dark:hover:from-sky-400 dark:hover:to-sky-500"
+              disabled={running || !localUrl.ok || runLockedForCurrentUrl}
               onClick={() => void start()}
             >
-              {running ? "Exploring your site…" : "Run live analysis"}
+              {running
+                ? "Exploring your site…"
+                : runLockedForCurrentUrl
+                  ? "Run already started for this URL"
+                  : "Run live analysis"}
             </button>
+            {runLockedForCurrentUrl && !running && localUrl.ok && (
+              <p className="mt-1.5 text-[10px] text-zinc-500 dark:text-zinc-500">
+                Change the website URL, or close and add again from the header to run a new analysis.
+              </p>
+            )}
             {error && (
               <p className="mt-2 text-xs font-medium text-red-600 dark:text-red-400">{error}</p>
             )}
