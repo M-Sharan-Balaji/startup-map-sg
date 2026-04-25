@@ -29,3 +29,6 @@ create table if not exists public.startups (
 -- Service role (used by this Next.js server) bypasses RLS; no policies for anonymous/public by default
 alter table public.store_meta enable row level security;
 alter table public.startups enable row level security;
+
+-- Refresh PostgREST schema cache (fixes "not in the schema cache" right after first deploy)
+notify pgrst, 'reload schema';

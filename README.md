@@ -7,13 +7,15 @@ Next.js (App Router) app with a [MapLibre](https://maplibre.org/) map, clustered
 ## Supabase (required)
 
 1. Create a project at [supabase.com](https://supabase.com).
-2. In **SQL Editor**, run the script in [`supabase/migrations/20260426120000_init_startups.sql`](supabase/migrations/20260426120000_init_startups.sql) to create `store_meta` and `startups`.
+2. Create tables: open **SQL Editor** and run [`supabase/migrations/20260426120000_init_startups.sql`](supabase/migrations/20260426120000_init_startups.sql) (adds `store_meta`, `startups`, and reloads the API schema cache). Or from this repo, set `DATABASE_URL` in `.env.local` (see **Settings → Database → Connection string, URI** with your password) and run `npm run db:migrate`.
 3. In **Project Settings → API**, copy the **Project URL** and a **server** key for `SUPABASE_SERVICE_ROLE_KEY` (see below). Never use the **Publishable** key for the server; never commit keys to git.
 4. Set `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` in `.env.local` (see `.env.example`). For **Render**, set the same variables under **Web Service → Environment** and **redeploy** after changing them.
 
 **If you see `Invalid API key`:** On the same API page, use the long **legacy** `service_role` JWT (starts with `eyJ...`) from **Project API keys** as `SUPABASE_SERVICE_ROLE_KEY`, or the **Secret** from **Secret keys** (not the Publishable key). Keys must be copied in full, one line, no extra quotes.
 
 **`TypeError: fetch failed`:** Wrong project URL, project paused, or network/firewall. Open the project URL in a browser; restore the project in the Supabase dashboard if paused.
+
+**`Could not find the table` / not in the schema cache:** The migration in step 2 was not run on this project (or PostgREST needs a cache reload; the script ends with a notify to reload the schema). Run the SQL in step 2, then call `/api/startups` again. No Render redeploy is required for a DB-only change.
 5. Seed the database from the repo seed file: `npm run db:seed` (requires env vars from step 4).
 
 ## Setup
