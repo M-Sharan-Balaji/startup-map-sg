@@ -1,8 +1,24 @@
 import type { StartupStore } from "@/lib/startup";
 import { startupToRow, toStartupStore, type StartupRow } from "@/lib/db/mappers";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
+import type { PostgrestError } from "@supabase/supabase-js";
 
 const CHUNK = 80;
+
+function isMissingGeocodeColumnError(err: PostgrestError | null): boolean {
+  const m = (err?.message || "").toLowerCase();
+  return (
+    m.includes("address_text") ||
+    m.includes("location_source") ||
+    m.includes("schema cache")
+  );
+}
+
+function withoutGeocodeColumns(
+  rows: StartupRow[],
+): Omit<StartupRow, "address_text" | "location_source">[] {
+  return rows.map(({ address_text: _a, location_source: _l, ...rest }) => rest);
+}
 
 /**
  * All startup data lives in Supabase. Configure SUPABASE_URL (or NEXT_PUBLIC_SUPABASE_URL)
@@ -38,23 +54,51 @@ export async function readStore(): Promise<StartupStore> {
   return toStartupStore(version, updatedAt, (rows as StartupRow[]) || []);
 }
 
-/** Replace all rows and bump updated_at. */
+/**
+ * Writes the next store snapshot. Uses upsert by `id` then deletes rows that are
+ * no longer in `next` — we **do not** clear the table first, so a failed write cannot
+ * wipe all startups (unlike delete-then-insert).
+ * If the DB has not had migration `20260427120000_startups_address_geocode.sql` applied,
+ * we retry without `address_text` / `location_source` when PostgREST complains.
+ */
 export async function writeStore(next: StartupStore): Promise<void> {
   const supabase = getSupabaseAdmin();
-  const { error: delErr } = await supabase.from("startups").delete().neq("id", "");
-  if (delErr) {
-    throw new Error(`Supabase clear startups: ${delErr.message}`);
+  const newIds = new Set(next.startups.map((s) => s.id));
+  const { data: currentRows, error: curErr } = await supabase
+    .from("startups")
+    .select("id");
+  if (curErr) {
+    throw new Error(`Supabase list startup ids: ${curErr.message}`);
   }
-  if (next.startups.length > 0) {
-    const rows = next.startups.map(startupToRow);
-    for (let i = 0; i < rows.length; i += CHUNK) {
-      const part = rows.slice(i, i + CHUNK);
-      const { error: insErr } = await supabase.from("startups").insert(part);
-      if (insErr) {
-        throw new Error(`Supabase insert startups: ${insErr.message}`);
+  const currentIds = (currentRows || []).map((r) => r.id as string);
+
+  const rows = next.startups.map(startupToRow);
+  for (let i = 0; i < rows.length; i += CHUNK) {
+    const part = rows.slice(i, i + CHUNK);
+    const { error: upErr } = await supabase.from("startups").upsert(part, { onConflict: "id" });
+    if (upErr && isMissingGeocodeColumnError(upErr)) {
+      const { error: leanErr } = await supabase
+        .from("startups")
+        .upsert(withoutGeocodeColumns(part), { onConflict: "id" });
+      if (leanErr) {
+        throw new Error(`Supabase upsert startups: ${leanErr.message}`);
+      }
+    } else if (upErr) {
+      throw new Error(`Supabase upsert startups: ${upErr.message}`);
+    }
+  }
+
+  const toDelete = currentIds.filter((id) => !newIds.has(id));
+  if (toDelete.length > 0) {
+    for (let i = 0; i < toDelete.length; i += CHUNK) {
+      const part = toDelete.slice(i, i + CHUNK);
+      const { error: delErr } = await supabase.from("startups").delete().in("id", part);
+      if (delErr) {
+        throw new Error(`Supabase delete removed startups: ${delErr.message}`);
       }
     }
   }
+
   const updatedAt = new Date().toISOString();
   const { error: upErr } = await supabase
     .from("store_meta")
