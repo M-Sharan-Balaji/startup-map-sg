@@ -243,7 +243,20 @@ export function StartupExplorer() {
               Loading map…
             </div>
           )}
-          {!loading && filtered.length === 0 && (
+          {!loading && all.length === 0 && !error && (
+            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 bg-white/70 p-6 text-center dark:bg-zinc-950/60">
+              <p className="text-sm font-medium text-zinc-800 dark:text-zinc-200">No companies in the database</p>
+              <p className="max-w-sm text-xs text-zinc-500 dark:text-zinc-400">
+                The map reads from your Supabase <code className="rounded bg-zinc-200/80 px-1 dark:bg-zinc-800">startups</code>{" "}
+                table. If it was cleared by mistake, run{" "}
+                <code className="rounded bg-zinc-200/80 px-1 dark:bg-zinc-800">npm run db:seed</code> with the
+                same <code className="rounded bg-zinc-200/80 px-1 dark:bg-zinc-800">SUPABASE_*</code> keys as
+                this deployment, or re-import a backup. Production and local .env can point at different
+                projects.
+              </p>
+            </div>
+          )}
+          {!loading && all.length > 0 && filtered.length === 0 && (
             <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 bg-white/70 p-6 text-center dark:bg-zinc-950/60">
               <p className="text-sm font-medium text-zinc-800 dark:text-zinc-200">No startups match</p>
               <p className="max-w-sm text-xs text-zinc-500 dark:text-zinc-400">
