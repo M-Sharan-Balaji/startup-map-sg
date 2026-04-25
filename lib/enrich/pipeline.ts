@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import { extractStartupFromPage } from "@/lib/tinyfish/agent";
+import { getTinyfishApiKey } from "@/lib/tinyfish/env";
 import { fetchContents, type FetchPageResult } from "@/lib/tinyfish/fetch";
 import { searchWeb } from "@/lib/tinyfish/search";
 import { getHostnameKey, type Stage, type Startup } from "@/lib/startup";
@@ -198,7 +199,9 @@ export async function runEnrichPipeline(
   if (!query.trim()) {
     throw new Error("query is required");
   }
-  if (!process.env.TINYFISH_API_KEY) {
+  try {
+    getTinyfishApiKey();
+  } catch {
     throw new Error("TINYFISH_API_KEY is not set");
   }
 
@@ -397,8 +400,14 @@ export async function mergeOneFromWebsiteUrl(raw: string): Promise<MergeOneResul
     }
   }
 
-  if (!process.env.TINYFISH_API_KEY) {
-    return { ok: false, error: "TINYFISH_API_KEY is not set on the server" };
+  try {
+    getTinyfishApiKey();
+  } catch {
+    return {
+      ok: false,
+      error:
+        "TINYFISH_API_KEY is not set (or is only whitespace) on the server. Adding a company uses TinyFish (Fetch API) to read the public page—this is separate from Supabase. Set TINYFISH_API_KEY in Render → Environment and redeploy, like local .env. GET /api/health shows which keys the server can see (names only).",
+    };
   }
 
   let list = store.startups;

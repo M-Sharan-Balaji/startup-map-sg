@@ -1,3 +1,5 @@
+import { getTinyfishApiKey } from "@/lib/tinyfish/env";
+
 const FETCH_URL = "https://api.fetch.tinyfish.ai";
 
 export type FetchPageResult = {
@@ -14,14 +16,6 @@ export type FetchResponse = {
   errors: { url: string; error: string }[];
 };
 
-function getApiKey(): string {
-  const k = process.env.TINYFISH_API_KEY;
-  if (!k) {
-    throw new Error("TINYFISH_API_KEY is not set");
-  }
-  return k;
-}
-
 export async function fetchContents(urls: string[], format: "markdown" | "html" = "markdown") {
   if (urls.length > 10) {
     throw new Error("fetchContents accepts at most 10 URLs per request");
@@ -29,7 +23,7 @@ export async function fetchContents(urls: string[], format: "markdown" | "html" 
   const res = await fetch(FETCH_URL, {
     method: "POST",
     headers: {
-      "X-API-Key": getApiKey(),
+      "X-API-Key": getTinyfishApiKey(),
       "Content-Type": "application/json",
     },
     body: JSON.stringify({ urls, format, links: false, image_links: false }),

@@ -1,6 +1,7 @@
 import "dotenv/config";
 
 import { runEnrichPipeline } from "../lib/enrich/pipeline";
+import { getTinyfishApiKey } from "../lib/tinyfish/env";
 
 function main() {
   const args = process.argv.slice(2);
@@ -13,7 +14,9 @@ function main() {
     const pos = args.filter((a) => !a.startsWith("-"));
     if (pos[0]) query = pos[0]!;
   }
-  if (!process.env.TINYFISH_API_KEY) {
+  try {
+    getTinyfishApiKey();
+  } catch {
     console.error("Set TINYFISH_API_KEY in the environment (or .env).");
     process.exit(1);
   }

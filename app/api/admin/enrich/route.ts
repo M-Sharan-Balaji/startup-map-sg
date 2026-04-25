@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { runEnrichPipeline } from "@/lib/enrich/pipeline";
+import { getTinyfishApiKey } from "@/lib/tinyfish/env";
 
 function authorize(request: Request): boolean {
   const required = process.env.ENRICH_SECRET;
@@ -23,7 +24,9 @@ export async function POST(request: Request) {
       { status: 401 },
     );
   }
-  if (!process.env.TINYFISH_API_KEY) {
+  try {
+    getTinyfishApiKey();
+  } catch {
     return NextResponse.json(
       { error: "TINYFISH_API_KEY is not set on the server" },
       { status: 503 },

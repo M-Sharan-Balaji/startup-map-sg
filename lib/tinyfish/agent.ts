@@ -1,3 +1,5 @@
+import { getTinyfishApiKey } from "@/lib/tinyfish/env";
+
 const RUN_URL = "https://agent.tinyfish.ai/v1/automation/run";
 
 const startupExtractionSchema = {
@@ -20,14 +22,6 @@ const startupExtractionSchema = {
     "hiring",
   ],
 };
-
-function getApiKey(): string {
-  const k = process.env.TINYFISH_API_KEY;
-  if (!k) {
-    throw new Error("TINYFISH_API_KEY is not set");
-  }
-  return k;
-}
 
 type AgentRunResult = {
   result?: unknown;
@@ -57,7 +51,7 @@ export async function extractStartupFromPage(
   const res = await fetch(RUN_URL, {
     method: "POST",
     headers: {
-      "X-API-Key": getApiKey(),
+      "X-API-Key": getTinyfishApiKey(),
       "Content-Type": "application/json",
     },
     body: JSON.stringify({

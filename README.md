@@ -16,6 +16,8 @@ Next.js (App Router) app with a [MapLibre](https://maplibre.org/) map, clustered
 **`TypeError: fetch failed`:** Wrong project URL, project paused, or network/firewall. Open the project URL in a browser; restore the project in the Supabase dashboard if paused.
 
 **`Could not find the table` / not in the schema cache:** The migration in step 2 was not run on this project (or PostgREST needs a cache reload; the script ends with a notify to reload the schema). Run the SQL in step 2, then call `/api/startups` again. No Render redeploy is required for a DB-only change.
+
+**Debugging “my API key is correct”:** The app uses **two vendors**: [Supabase](https://supabase.com/) (DB) and [TinyFish](https://www.tinyfish.io/) (Fetch + live agent for “Add your startup”). A working Supabase key does **not** cover TinyFish. Check **`GET /api/health`** on your deployment (booleans only, no secret values) to see which env names the server actually loaded.
 5. Seed the database from the repo seed file: `npm run db:seed` (requires env vars from step 4).
 
 ## Setup

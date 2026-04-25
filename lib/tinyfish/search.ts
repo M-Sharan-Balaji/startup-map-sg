@@ -1,3 +1,5 @@
+import { getTinyfishApiKey } from "@/lib/tinyfish/env";
+
 const SEARCH_URL = "https://api.search.tinyfish.ai/";
 
 export type SearchHit = {
@@ -15,14 +17,6 @@ export type SearchResponse = {
   page: number;
 };
 
-function getApiKey(): string {
-  const k = process.env.TINYFISH_API_KEY;
-  if (!k) {
-    throw new Error("TINYFISH_API_KEY is not set");
-  }
-  return k;
-}
-
 export async function searchWeb(params: {
   query: string;
   location?: string;
@@ -36,7 +30,7 @@ export async function searchWeb(params: {
   if (params.page != null) u.searchParams.set("page", String(params.page));
 
   const res = await fetch(u, {
-    headers: { "X-API-Key": getApiKey() },
+    headers: { "X-API-Key": getTinyfishApiKey() },
   });
 
   if (!res.ok) {

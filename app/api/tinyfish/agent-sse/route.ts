@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 
+import { getTinyfishApiKey } from "@/lib/tinyfish/env";
 import { parsePublicWebsiteUrl } from "@/lib/websiteUrl";
 
 export const runtime = "nodejs";
@@ -16,8 +17,10 @@ If something is not visible, say "not shown on the site" for that part. Be factu
 
 
 export async function POST(request: NextRequest) {
-  const key = process.env.TINYFISH_API_KEY;
-  if (!key) {
+  let key: string;
+  try {
+    key = getTinyfishApiKey();
+  } catch {
     return new Response(
       JSON.stringify({ error: "TINYFISH_API_KEY is not configured on the server" }),
       { status: 503, headers: { "Content-Type": "application/json" } },
