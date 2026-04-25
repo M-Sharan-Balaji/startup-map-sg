@@ -1,8 +1,12 @@
 # Singapore startup map
 
-Next.js (App Router) app with a [MapLibre](https://maplibre.org/) map, clustered markers, and startup data in **[Supabase](https://supabase.com/)** (Postgres). Optional [TinyFish](https://docs.tinyfish.ai/) **Search** + **Fetch** (and **Agent** when `useAgent` is enabled) can discover and merge rows server-side. A bundled [`data/startups.json`](data/startups.json) is the seed source for a one-time `npm run db:seed` into Supabase.
+## About the project
 
-**Visitors:** the site is for discovering startups; public analysis runs and hosting are your (operator) cost — end users are not billed for TinyFish or infrastructure.
+**Singapore startup map** is a small web app for **discovering startups in Singapore** on an interactive [MapLibre](https://maplibre.org/) map, with a searchable list, filters, and company detail views (stage, sector, hiring, links). The audience is anyone browsing the ecosystem; **founders** can use **Add your startup** (when the operator enables it) to submit a public company website so the server can read the page, infer a profile, and save it to the map.
+
+**Data and services:** company rows are stored in **[Supabase](https://supabase.com/)** (Postgres). [TinyFish](https://docs.tinyfish.ai/) is used for search, page fetch, structured extraction, and the optional **live agent** (SSE) during that add flow. An initial dataset ships as [`data/startups.json`](data/startups.json) and is loaded with `npm run db:seed` after you configure the database.
+
+**Responsibility and cost:** whoever **deploys and operates** the site pays for hosting and third-party API usage. **Public visitors are not billed** for TinyFish, Supabase, or infrastructure. The app is built with [Next.js](https://nextjs.org/) (App Router) and server-side API routes; configuration is env-driven, as in the rest of this README.
 
 ## Supabase (required)
 
@@ -42,7 +46,7 @@ Markers and list entries load each company’s **favicon** through **`GET /api/l
 Click **Add your startup** in the header, enter a public `https://` company site, and run the live flow (no custom prompt — the server uses a fixed founder profile goal). The app calls `POST /api/tinyfish/agent-sse`, which proxies TinyFish’s **`/v1/automation/run-sse`** stream to the browser (your API key stays on the server). The request body matches the same automation fields used in [Propelix](https://github.com/M-Sharan-Balaji/propelix) (`browser_profile`, `proxy_config`, `api_integration`, plus `url` and `goal`). Optional env: `TINYFISH_API_INTEGRATION` (default `sg-startup-map`). You get:
 
 - A **scrollable log** of `PROGRESS` and other events.
-- A **live iframe** when a `STREAMING_URL` event is received (remote browser view).
+- A **link to open the live session** in a new tab when a `STREAMING_URL` arrives (embedding is usually blocked in-page).
 - A **JSON result** when the run `COMPLETE`s.
 
 Set `TINYFISH_API_KEY` in `.env.local` (see `.env.example`). Do not commit real keys to git.
