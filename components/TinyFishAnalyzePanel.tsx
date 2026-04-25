@@ -189,6 +189,79 @@ export function TinyFishAnalyzePanel({ open, onClose, onMergeSuccess }: Props) {
       setStreamStartedForUrl(url.trim());
       const reader = res.body.getReader();
       const dec = new TextDecoder();
+      const site = url.trim();
+      /** Set when we already kicked off merge-one from a COMPLETE event (avoids end-of-stream duplicate). */
+      let mergeDispatchedFromComplete = false;
+
+      const runMerge = (agentResult: unknown | undefined, sourceLabel: string) => {
+        if (!site) {
+          return;
+        }
+        setMapSave("saving");
+        void (async () => {
+          try {
+            const body: { url: string; agentResult?: unknown } = { url: site };
+            if (agentResult !== undefined) {
+              body.agentResult = agentResult;
+            }
+            const mergeRes = await fetch("/api/startups/merge-one", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(body),
+            });
+            const data = (await mergeRes.json()) as {
+              error?: string;
+              created?: boolean;
+              name?: string;
+              alreadyOnMap?: boolean;
+            };
+            if (mergeRes.ok) {
+              const already = data.alreadyOnMap === true;
+              setMapSave({
+                kind: "ok",
+                created: Boolean(data.created),
+                name: String(data.name || "Your startup"),
+                alreadyOnMap: already,
+              });
+              if (already) {
+                appendLog(
+                  "This site is already on the map — we didn’t create a duplicate.",
+                  "ok",
+                );
+              } else {
+                appendLog(
+                  sourceLabel === "fallback" ?
+                    "Added to the map (used public page, no live result) — opening…"
+                  : "Added to the map — opening…",
+                  "ok",
+                );
+              }
+              const info: MergeSuccessInfo = {
+                websiteUrl: site,
+                name: String(data.name || "Your startup"),
+                alreadyOnMap: already,
+              };
+              try {
+                await Promise.resolve(onMergeSuccess?.(info));
+              } catch {
+                /* parent handles */
+              }
+              onClose();
+            } else {
+              setStreamStartedForUrl(null);
+              const msg = data.error || mergeRes.statusText;
+              setMapSave({ kind: "err", message: msg });
+              appendLog(`Map was not updated: ${msg}`, "error");
+            }
+          } catch (e) {
+            setStreamStartedForUrl(null);
+            const m = (e as Error).message;
+            setMapSave({ kind: "err", message: m });
+            appendLog(`Map was not updated: ${m}`, "error");
+          }
+        })();
+      };
+
       appendLog("Connected — the agent is exploring your public site", "ok");
       for (;;) {
         const { value, done } = await reader.read();
@@ -229,76 +302,35 @@ export function TinyFishAnalyzePanel({ open, onClose, onMergeSuccess }: Props) {
             if (String(ev.status) === "FAILED") {
               const help = [ev.error, ev.help_message].filter(Boolean).join(" ");
               appendLog(`Failed: ${help || "unknown error"}`, "error");
+              appendLog("Trying the map from the public page (without live result)…", "info");
+              if (site) {
+                mergeDispatchedFromComplete = true;
+                runMerge(undefined, "fallback");
+              }
             } else {
               appendLog("Run completed", "ok");
-              const site = url.trim();
               const evRecord = ev as Record<string, unknown>;
               const liveAgentResult = evRecord.result ?? evRecord.output ?? evRecord.data;
               if (site) {
-                setMapSave("saving");
-                void (async () => {
-                  try {
-                    const res = await fetch("/api/startups/merge-one", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({
-                        url: site,
-                        // Lets the server build the row from the live run (avoids a second Fetch that often fails)
-                        agentResult: liveAgentResult !== undefined ? liveAgentResult : undefined,
-                      }),
-                    });
-                    const data = (await res.json()) as {
-                      error?: string;
-                      created?: boolean;
-                      name?: string;
-                      alreadyOnMap?: boolean;
-                    };
-                    if (res.ok) {
-                      const already = data.alreadyOnMap === true;
-                      setMapSave({
-                        kind: "ok",
-                        created: Boolean(data.created),
-                        name: String(data.name || "Your startup"),
-                        alreadyOnMap: already,
-                      });
-                      if (already) {
-                        appendLog(
-                          "This site is already on the map — we didn’t create a duplicate.",
-                          "ok",
-                        );
-                      } else {
-                        appendLog("Added to the map — opening…", "ok");
-                      }
-                      const info: MergeSuccessInfo = {
-                        websiteUrl: site,
-                        name: String(data.name || "Your startup"),
-                        alreadyOnMap: already,
-                      };
-                      try {
-                        await Promise.resolve(onMergeSuccess?.(info));
-                      } catch {
-                        /* parent handles */
-                      }
-                      onClose();
-                    } else {
-                      setStreamStartedForUrl(null);
-                      const msg = data.error || res.statusText;
-                      setMapSave({ kind: "err", message: msg });
-                      appendLog(`Map was not updated: ${msg}`, "error");
-                    }
-                  } catch (e) {
-                    setStreamStartedForUrl(null);
-                    const m = (e as Error).message;
-                    setMapSave({ kind: "err", message: m });
-                    appendLog(`Map was not updated: ${m}`, "error");
-                  }
-                })();
+                mergeDispatchedFromComplete = true;
+                runMerge(
+                  liveAgentResult !== undefined ? liveAgentResult : undefined,
+                  "agent",
+                );
               }
             }
             continue;
           }
           appendLog(data.slice(0, 500), "info");
         }
+      }
+
+      if (!ac.signal.aborted && !mergeDispatchedFromComplete && site) {
+        appendLog(
+          "The live stream closed before a COMPLETE event (timeout or network). Trying the map from the public page only…",
+          "info",
+        );
+        runMerge(undefined, "fallback");
       }
     } catch (e) {
       if ((e as Error).name === "AbortError") {

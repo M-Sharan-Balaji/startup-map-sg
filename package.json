@@ -12,7 +12,8 @@
     "lint": "eslint",
     "enrich": "tsx scripts/enrich.ts",
     "db:seed": "tsx scripts/seed-from-json.ts",
-    "db:migrate": "tsx scripts/apply-migration.ts"
+    "db:migrate": "tsx scripts/apply-migration.ts",
+    "db:cleanup": "tsx scripts/cleanup-bad-startups.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.104.1",
