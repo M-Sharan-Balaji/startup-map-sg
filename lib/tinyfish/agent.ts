@@ -1,3 +1,4 @@
+import { tinyfishAutomationFields } from "@/lib/tinyfish/automationPayload";
 import { getTinyfishApiKey } from "@/lib/tinyfish/env";
 
 const RUN_URL = "https://agent.tinyfish.ai/v1/automation/run";
@@ -59,6 +60,7 @@ export async function extractStartupFromPage(
       goal:
         "You are on a public company or startup page. Extract the public company or product name, a concise 1–3 sentence description, canonical website, rough funding stage if stated, a primary industry tag, and whether they appear to be hiring on this page.",
       output_schema: startupExtractionSchema,
+      ...tinyfishAutomationFields(),
     }),
   });
 

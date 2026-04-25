@@ -39,7 +39,7 @@ Markers and list entries load each company’s **favicon** through **`GET /api/l
 
 ## Live TinyFish agent (SSE)
 
-Click **Add your startup** in the header, enter a public `https://` company site, and run the live flow (no custom prompt — the server uses a fixed founder profile goal). The app calls `POST /api/tinyfish/agent-sse`, which proxies TinyFish’s **`/v1/automation/run-sse`** stream to the browser (your API key stays on the server). You get:
+Click **Add your startup** in the header, enter a public `https://` company site, and run the live flow (no custom prompt — the server uses a fixed founder profile goal). The app calls `POST /api/tinyfish/agent-sse`, which proxies TinyFish’s **`/v1/automation/run-sse`** stream to the browser (your API key stays on the server). The request body matches the same automation fields used in [Propelix](https://github.com/M-Sharan-Balaji/propelix) (`browser_profile`, `proxy_config`, `api_integration`, plus `url` and `goal`). Optional env: `TINYFISH_API_INTEGRATION` (default `sg-startup-map`). You get:
 
 - A **scrollable log** of `PROGRESS` and other events.
 - A **live iframe** when a `STREAMING_URL` event is received (remote browser view).

@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 
+import { tinyfishAutomationFields } from "@/lib/tinyfish/automationPayload";
 import { getTinyfishApiKey } from "@/lib/tinyfish/env";
 import { parsePublicWebsiteUrl } from "@/lib/websiteUrl";
 
@@ -56,14 +57,12 @@ export async function POST(request: NextRequest) {
       Accept: "text/event-stream",
       "X-API-Key": key,
     },
+    // Match Propelix run-sse payload (main.py tinyfish_stream_proxy): url, goal,
+    // browser_profile, proxy_config, api_integration — not only agent_config.
     body: JSON.stringify({
       url: targetUrl,
       goal,
-      agent_config: {
-        max_steps: 80,
-        mode: "default" as const,
-        cursor_style: "standard" as const,
-      },
+      ...tinyfishAutomationFields(),
     }),
   });
 
