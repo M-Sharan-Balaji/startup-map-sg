@@ -1,0 +1,22 @@
+# Render Blueprint: https://render.com/docs/blueprint-spec
+# Set secret env vars in the dashboard: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, TINYFISH_API_KEY, etc.
+
+services:
+  - type: web
+    name: sg-startup-map
+    runtime: node
+    plan: free
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /
+    envVars:
+      - key: NODE_VERSION
+        value: 22.12.0
+      - key: ENRICH_SECRET
+        generateValue: true
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TINYFISH_API_KEY
+        sync: false
