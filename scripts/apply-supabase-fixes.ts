@@ -11,6 +11,7 @@ import { fileURLToPath } from "node:url";
 import { config } from "dotenv";
 import pg from "pg";
 import { createClient } from "@supabase/supabase-js";
+import { logger } from "../lib/logger";
 
 const { Client } = pg;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -103,14 +104,14 @@ void (async () => {
       await client.query("begin");
       await client.query(sql);
       await client.query("commit");
-      console.log("OK: applied", path.basename(SQL_PATH), "via DATABASE_URL");
+      logger.info({ file: path.basename(SQL_PATH) }, "Applied SQL via DATABASE_URL");
     } catch (e) {
       try {
         await client.query("rollback");
       } catch {
         /* ignore */
       }
-      console.error("SQL failed:", (e as Error).message);
+      logger.error({ error: (e as Error).message }, "SQL failed");
       process.exit(1);
     } finally {
       await client.end();
@@ -118,18 +119,15 @@ void (async () => {
     return;
   }
 
-  console.warn(
-    "No DATABASE_URL or SUPABASE_DB_PASSWORD — applying only row deletes via API. For ALTER TABLE, add DATABASE_URL or SUPABASE_DB_PASSWORD to .env.local, or run the SQL file in the Supabase SQL editor.\n",
-  );
+  logger.warn("No DATABASE_URL or SUPABASE_DB_PASSWORD — applying only row deletes via API. For ALTER TABLE, add DATABASE_URL or SUPABASE_DB_PASSWORD to .env.local, or run the SQL file in the Supabase SQL editor.");
 
   const supabase = getAdmin();
   const { data: rows, error: selErr } = await supabase
     .from("startups")
     .select("id, name, slug, website");
   if (selErr) {
-    console.error("Select failed:", selErr.message);
-    console.error("\n--- Paste in Supabase SQL editor ---\n");
-    console.error(sql);
+    logger.error({ error: selErr.message }, "Select failed - paste SQL in Supabase SQL editor");
+    logger.error(sql);
     process.exit(1);
   }
   const toRemove = (rows || []).filter((r) => shouldPrune(r as { name: string; slug: string; website: string }));
@@ -139,15 +137,13 @@ void (async () => {
       toRemove.map((r) => r.id),
     );
     if (delErr) {
-      console.error("Delete failed:", delErr.message);
+      logger.error({ error: delErr.message }, "Delete failed");
       process.exit(1);
     }
-    console.log("Removed", toRemove.length, "row(s) via API:", toRemove.map((r) => r.name).join(", "));
+    logger.info({ count: toRemove.length, names: toRemove.map((r) => r.name).join(", ") }, "Removed rows via API");
   } else {
-    console.log("No matching rows to delete via API.");
+    logger.info("No matching rows to delete via API");
   }
-  console.error(
-    "\n--- Add DATABASE_URL (or SUPABASE_DB_PASSWORD) to .env.local, or paste in Supabase SQL editor ---\n",
-  );
-  console.error(sql);
+  logger.error("Add DATABASE_URL (or SUPABASE_DB_PASSWORD) to .env.local, or paste in Supabase SQL editor");
+  logger.error(sql);
 })();
