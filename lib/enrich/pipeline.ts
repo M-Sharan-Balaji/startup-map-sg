@@ -10,6 +10,12 @@ import { readStore, writeStore } from "@/lib/store";
 import { parsePublicWebsiteUrl } from "@/lib/websiteUrl";
 import { resolveStartupGeolocation } from "@/lib/geocode/resolve";
 
+/**
+ * Normalizes a funding stage string to a standard Stage enum value.
+ * Handles various case formats and common aliases.
+ * @param s - Raw stage string from extraction
+ * @returns Normalized Stage enum value
+ */
 function normalizeStage(s: string | undefined): Stage {
   if (!s) return "Unknown";
   const t = s.toLowerCase();
@@ -31,17 +37,31 @@ function normalizeStage(s: string | undefined): Stage {
   return "Unknown" as Stage;
 }
 
+/**
+ * Extracts the canonical domain from a URL, preferring extracted website if available.
+ * @param url - Original URL used for fetching
+ * @param extracted - Extracted website URL from agent result
+ * @returns Canonical origin (protocol + hostname)
+ */
 function domainFromPage(url: string, extracted?: string): string {
   if (extracted) {
     try {
       return toCanonicalOrigin(extracted);
-    } catch {
+    } catch (error) {
+      console.warn(`Failed to parse extracted URL: ${extracted}`, error);
       // fall through
     }
   }
   return toCanonicalOrigin(url);
 }
 
+/**
+ * Converts a URL to its canonical origin (protocol + hostname).
+ * Throws error for localhost or invalid hostnames.
+ * @param u - URL string to convert
+ * @returns Canonical origin in lowercase
+ * @throws Error if hostname is localhost or invalid
+ */
 function toCanonicalOrigin(u: string): string {
   const withProto = u.startsWith("http") ? u : `https://${u}`;
   const o = new URL(withProto);
@@ -53,7 +73,11 @@ function toCanonicalOrigin(u: string): string {
 
 /**
  * Strips common markdown from scraped copy and caps length for list/map cards.
- * For a short “blurb” written by a model, add a separate LLM or TinyFish goal step; this is rule-based only.
+ * Removes headers, bold text, links, and excessive whitespace.
+ * For a short "blurb" written by a model, add a separate LLM or TinyFish goal step; this is rule-based only.
+ * @param input - Raw description text potentially containing markdown
+ * @param maxLen - Maximum length of output (default 500)
+ * @returns Cleaned and truncated description
  */
 function sanitizeMapDescription(input: string, maxLen = 500): string {
   let t = input.replace(/\r\n/g, "\n");
@@ -76,6 +100,14 @@ function sanitizeMapDescription(input: string, maxLen = 500): string {
   return `${cut.trim()}…`;
 }
 
+/**
+ * Creates a description snippet from page title, text, and search snippet.
+ * Falls back to combining title and snippet if text is too short.
+ * @param title - Page title
+ * @param text - Full page text content
+ * @param snippet - Search result snippet
+ * @returns Sanitized description up to 500 characters
+ */
 function snippetDescription(title: string, text?: string, snippet?: string): string {
   const fromPage = (text || "").replace(/\s+/g, " ").trim().slice(0, 500);
   const raw =
@@ -90,8 +122,11 @@ function snippetDescription(title: string, text?: string, snippet?: string): str
 }
 
 /**
- * Hiring signal when the enrich pipeline uses Fetch (markdown) only — not the structured Agent.
+ * Infers hiring status from page text and URL when using Fetch (not Agent).
  * Agent path uses `extracted.hiring` from TinyFish instead.
+ * Checks for hiring-related keywords and career page URLs.
+ * @param input - Page content including title, text, snippet, and URL
+ * @returns true if hiring signals are detected, false otherwise
  */
 function inferHiringFromPageText(input: {
   title: string;
@@ -143,6 +178,12 @@ export type EnrichResult = {
   agentSkipped: boolean;
 };
 
+/**
+ * Collects unique URLs from search results, filtering out known hosts and unwanted domains.
+ * @param results - Array of search results with URLs
+ * @param knownHosts - Set of already-known hostnames to deduplicate
+ * @returns Array of unique URLs with source information
+ */
 function collectUniqueUrls(
   results: { url: string }[],
   knownHosts: Set<string>,
@@ -174,12 +215,23 @@ function collectUniqueUrls(
   return out;
 }
 
+/**
+ * Parses an address line from text looking for "ADDRESS:" prefix.
+ * @param s - Text to search for address
+ * @returns Address line if found, null otherwise
+ */
 function parseAddressLineFromText(s: string): string | null {
   const m = s.match(/^\s*ADDRESS:\s*(.+)$/im);
   const t = m?.[1]?.trim();
   return t && t.length > 3 ? t : null;
 }
 
+/**
+ * Returns a priority score for location sources to determine which geolocation to keep.
+ * Higher priority sources override lower ones when merging.
+ * @param source - Location source identifier
+ * @returns Priority score (0-4, higher is better)
+ */
 function locationPriority(source: string | null | undefined): number {
   if (!source) {
     return 0;
@@ -200,8 +252,12 @@ function locationPriority(source: string | null | undefined): number {
 }
 
 /**
- * Build a row from the TinyFish **live** agent COMPLETE payload. Shapes differ by run;
- * this avoids a second Fetch/extract that often fails for the same URL after a successful run.
+ * Builds a startup row from the TinyFish live agent COMPLETE payload.
+ * Handles different response shapes to avoid a second Fetch/extract that often fails.
+ * @param fullUrl - The URL that was processed by the agent
+ * @param raw - Raw agent result payload
+ * @param existing - Array of existing startups for slug uniqueness
+ * @returns Startup object or null if extraction fails
  */
 async function tryExtractStartupFromAgentResult(
   fullUrl: string,
@@ -383,6 +439,14 @@ async function tryExtractStartupFromAgentResult(
   return await fromNameAndDescription(name, description, sector, hiringFlag, addressHint);
 }
 
+/**
+ * Merges an incoming startup into the list by hostname (deduplication).
+ * Updates existing entry if hostname matches, otherwise adds new entry.
+ * Preserves better location data and longer descriptions.
+ * @param startups - Existing list of startups
+ * @param incoming - New startup to merge
+ * @returns Object with updated list and boolean indicating if update occurred
+ */
 function mergeByHostname(startups: Startup[], incoming: Startup): { list: Startup[]; updated: boolean } {
   const key = getHostnameKey(incoming.website);
   const idx = startups.findIndex((s) => getHostnameKey(s.website) === key);
@@ -415,6 +479,12 @@ function mergeByHostname(startups: Startup[], incoming: Startup): { list: Startu
   return { list: next, updated: true };
 }
 
+/**
+ * Runs the enrichment pipeline to discover and add startups from web search.
+ * Searches for startups, fetches their pages, extracts data, and merges into the store.
+ * @param options - Enrichment options including query and limits
+ * @returns EnrichResult with statistics on added/updated startups and any errors
+ */
 export async function runEnrichPipeline(
   options: EnrichOptions,
 ): Promise<EnrichResult> {
@@ -620,10 +690,13 @@ export type MergeOneOptions = {
 };
 
 /**
- * Fetches a single public URL and merges a startup into the JSON store (same heuristics as enrich Fetch path).
- * If Fetch returns nothing, falls back to a structured `extractStartupFromPage` run.
- * When `options.agentResult` is set, that path is tried first.
- * Used by “Add your startup” after the live agent completes so the map actually updates.
+ * Fetches a single public URL and merges a startup into the store.
+ * Uses the same heuristics as the enrich Fetch path. If Fetch returns nothing,
+ * falls back to structured extraction. When agentResult is set, that path is tried first.
+ * Used by "Add your startup" after the live agent completes so the map updates.
+ * @param raw - URL string to process
+ * @param options - Optional agent result from live flow
+ * @returns MergeOneResult indicating success/failure and whether startup was created
  */
 export async function mergeOneFromWebsiteUrl(
   raw: string,

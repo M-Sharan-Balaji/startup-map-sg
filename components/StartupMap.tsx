@@ -43,6 +43,13 @@ const UNCLUSTERED_LOGO_SIZE =
   ((UNCLUSTERED_HALO_RADIUS_PX * Math.SQRT2 * LOGO_IN_CIRCLE) / SOURCE_LOGO_PX) *
   0.98; // 0.98: account for subpixel / stroke so corners never read past the ring
 
+/**
+ * Converts an array of Startup objects to GeoJSON FeatureCollection format
+ * for rendering on the MapLibre map. Each startup becomes a Point feature with
+ * properties for filtering and display.
+ * @param startups - Array of startup objects to convert
+ * @returns GeoJSON FeatureCollection with Point features for each startup
+ */
 function toGeoJson(startups: Startup[]): GeoJSON.FeatureCollection {
   return {
     type: "FeatureCollection",
@@ -65,6 +72,12 @@ function toGeoJson(startups: Startup[]): GeoJSON.FeatureCollection {
   };
 }
 
+/**
+ * Creates a canvas element with a letter fallback for startup logos.
+ * Used when logo loading fails or no logo is available.
+ * @param name - Startup name to extract the first letter from
+ * @returns HTMLCanvasElement with a colored circle and the first letter
+ */
 function letterFallbackCanvas(name: string): HTMLCanvasElement {
   const c = document.createElement("canvas");
   const size = 128;
@@ -90,6 +103,13 @@ function letterFallbackCanvas(name: string): HTMLCanvasElement {
   return c;
 }
 
+/**
+ * Adds a letter fallback image to the map for a specific startup.
+ * Only adds if the image doesn't already exist on the map.
+ * @param map - MapLibre map instance
+ * @param iconId - Unique identifier for the icon
+ * @param name - Startup name for the letter fallback
+ */
 function addLetterFallback(
   map: MapLibreMap,
   iconId: string,
@@ -102,11 +122,18 @@ function addLetterFallback(
   try {
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
     map.addImage(iconId, imageData, { pixelRatio: 1 });
-  } catch {
+  } catch (error) {
     // if addImage still fails, leave marker empty until re-style
+    console.warn(`Failed to add letter fallback for ${name}:`, error);
   }
 }
 
+/**
+ * Loads startup logos onto the map. For each startup, attempts to load the logo image.
+ * If loading fails, falls back to a letter-based marker.
+ * @param map - MapLibre map instance
+ * @param startups - Array of startups to load logos for
+ */
 function loadLogosOnMap(map: MapLibreMap, startups: Startup[]): void {
   for (const s of startups) {
     const iconId = mapIconIdForStartupId(s.id);
@@ -120,12 +147,14 @@ function loadLogosOnMap(map: MapLibreMap, startups: Startup[]): void {
         if (!map.hasImage(iconId)) {
           try {
             map.addImage(iconId, res.data, { pixelRatio: 1 });
-          } catch {
+          } catch (error) {
+            console.warn(`Failed to add logo for ${s.name}:`, error);
             addLetterFallback(map, iconId, s.name);
           }
         }
       })
-      .catch(() => {
+      .catch((error) => {
+        console.warn(`Failed to load logo for ${s.name}:`, error);
         addLetterFallback(map, iconId, s.name);
       });
   }
