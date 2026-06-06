@@ -6,7 +6,13 @@ export type PublicUrlMatch =
   | { kind: "not_found" }
   | { kind: "found"; startup: Startup };
 
-/** Match by site host (ignores path), same as enrich merge. */
+/**
+ * Finds a startup in the store by matching the website hostname.
+ * Match by site host (ignores path), same as enrich merge.
+ * @param store - Startup store to search
+ * @param rawUrl - Public website URL to match
+ * @returns PublicUrlMatch indicating if found, invalid, or not found
+ */
 export function findStartupByPublicUrl(store: StartupStore, rawUrl: string): PublicUrlMatch {
   const p = parsePublicWebsiteUrl(rawUrl);
   if (!p.ok) {

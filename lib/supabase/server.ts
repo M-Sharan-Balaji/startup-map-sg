@@ -2,12 +2,20 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 let cached: SupabaseClient | null = null;
 
+/**
+ * Normalizes a Supabase URL by removing trailing slashes.
+ * @param raw - Raw URL string
+ * @returns Normalized URL without trailing slashes
+ */
 function normalizeSupabaseUrl(raw: string): string {
   return raw.trim().replace(/\/+$/, "");
 }
 
 /**
  * Pasted keys often have quotes, spaces, or a `Bearer` prefix (especially from hosting UIs).
+ * Normalizes a service key by removing quotes, spaces, and Bearer prefix.
+ * @param raw - Raw service key string
+ * @returns Normalized service key
  */
 function normalizeServiceKey(raw: string): string {
   let k = raw.trim();

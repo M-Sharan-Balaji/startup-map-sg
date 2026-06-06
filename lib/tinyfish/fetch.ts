@@ -16,6 +16,14 @@ export type FetchResponse = {
   errors: { url: string; error: string }[];
 };
 
+/**
+ * Fetches content from multiple URLs using the TinyFish fetch API.
+ * Converts pages to markdown or HTML format for processing.
+ * @param urls - Array of URLs to fetch (max 10)
+ * @param format - Output format: "markdown" or "html" (default: "markdown")
+ * @returns FetchResponse with results and any errors
+ * @throws Error if more than 10 URLs provided or API request fails
+ */
 export async function fetchContents(urls: string[], format: "markdown" | "html" = "markdown") {
   if (urls.length > 10) {
     throw new Error("fetchContents accepts at most 10 URLs per request");
