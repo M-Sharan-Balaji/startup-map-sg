@@ -1,5 +1,8 @@
 /**
  * Pasted API keys in Render/hosting UIs may include extra quotes, spaces, or a `Bearer` prefix.
+ * Retrieves and normalizes the TinyFish API key from environment variables.
+ * @returns Normalized TinyFish API key
+ * @throws Error if TINYFISH_API_KEY is not set
  */
 export function getTinyfishApiKey(): string {
   let k = (process.env.TINYFISH_API_KEY || "").trim();

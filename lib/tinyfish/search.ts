@@ -17,6 +17,12 @@ export type SearchResponse = {
   page: number;
 };
 
+/**
+ * Performs a web search using the TinyFish search API.
+ * @param params - Search parameters including query, location, language, and page
+ * @returns SearchResponse with results and metadata
+ * @throws Error if the API request fails
+ */
 export async function searchWeb(params: {
   query: string;
   location?: string;

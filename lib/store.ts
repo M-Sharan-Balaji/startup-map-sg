@@ -17,6 +17,7 @@ function isMissingGeocodeColumnError(err: PostgrestError | null): boolean {
 function withoutGeocodeColumns(
   rows: StartupRow[],
 ): Omit<StartupRow, "address_text" | "location_source">[] {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   return rows.map(({ address_text: _a, location_source: _l, ...rest }) => rest);
 }
 
