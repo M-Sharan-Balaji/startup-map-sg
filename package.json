@@ -10,16 +10,21 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "test": "jest",
+    "test:e2e": "playwright test",
     "enrich": "tsx scripts/enrich.ts",
     "db:seed": "tsx scripts/seed-from-json.ts",
     "db:migrate": "tsx scripts/apply-migration.ts",
     "db:cleanup": "tsx scripts/cleanup-bad-startups.ts",
-    "db:apply-fixes": "tsx scripts/apply-supabase-fixes.ts"
+    "db:apply-fixes": "tsx scripts/apply-supabase-fixes.ts",
+    "prepare": "husky"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.104.1",
     "maplibre-gl": "^5.24.0",
     "next": "16.2.4",
+    "pino": "^10.3.1",
+    "pino-pretty": "^13.1.3",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "react-map-gl": "^8.1.1",
@@ -33,11 +38,23 @@
     "@types/react-dom": "^19",
     "@types/supercluster": "^7.1.3",
     "dotenv": "^17.4.2",
-    "pg": "^8.16.3",
     "eslint": "^9",
     "eslint-config-next": "16.2.4",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.0.7",
+    "pg": "^8.16.3",
+    "prettier": "^3.8.3",
     "tailwindcss": "^4",
     "tsx": "^4.21.0",
     "typescript": "^5"
+  },
+  "lint-staged": {
+    "*.{js,jsx,ts,tsx}": [
+      "eslint --fix",
+      "jest --bail --findRelatedTests"
+    ],
+    "*.{json,md}": [
+      "prettier --write"
+    ]
   }
 }
