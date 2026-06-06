@@ -31,6 +31,12 @@ type AgentRunResult = {
   status?: string;
 };
 
+/**
+ * Parses the agent response payload to extract the actual result.
+ * Handles different response shapes from TinyFish agent.
+ * @param body - Raw response body from TinyFish
+ * @returns Extracted result or null if invalid
+ */
 function parseAgentPayload(body: unknown): unknown {
   if (!body || typeof body !== "object") return null;
   const r = body as Record<string, unknown>;
@@ -50,6 +56,12 @@ export type ExtractedStartup = {
   address_hint?: string;
 };
 
+/**
+ * Extracts startup information from a webpage using TinyFish agent.
+ * Makes a structured extraction request to get company details.
+ * @param url - Public website URL to extract from
+ * @returns ExtractedStartup data or null if extraction fails
+ */
 export async function extractStartupFromPage(
   url: string,
 ): Promise<ExtractedStartup | null> {

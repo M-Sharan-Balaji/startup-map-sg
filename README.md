@@ -94,6 +94,17 @@ Rate limits and credits apply per your TinyFish plan. Failed Fetch URLs are repo
 - Keep `SUPABASE_SERVICE_ROLE_KEY` and all API keys in the host’s secret store, not in the repo. Never expose the service role key in client code or the browser.
 - [Rotate keys](https://supabase.com/docs/guides/platform/going-into-prod) if a secret is ever shared or leaked.
 
+### Key Regeneration
+
+If API keys have been exposed or need rotation:
+
+1. **Supabase keys**: Go to Project Settings → API → Regenerate the service role key
+2. **TinyFish key**: Regenerate from your TinyFish dashboard
+3. Update the new keys in:
+   - `.env.local` (local development)
+   - Render environment variables (or your hosting platform)
+4. Restart any running services after updating keys
+
 ## Scripts
 
 | Script | Action |

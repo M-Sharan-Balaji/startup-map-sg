@@ -1,8 +1,10 @@
 const DOUBLE_NL = "\n\n";
 
 /**
- * Parse incremental SSE chunks: return complete `\\n\\n`-delimited blocks and keep
+ * Parse incremental SSE chunks: return complete `\n\n`-delimited blocks and keep
  * the last partial line in the remainder.
+ * @param buffer - Accumulated SSE text buffer
+ * @returns Object with complete blocks and remaining partial text
  */
 export function extractSseEventBlocks(
   buffer: string,
@@ -18,6 +20,11 @@ export function extractSseEventBlocks(
   return { blocks, remainder: rest };
 }
 
+/**
+ * Extracts the data payload from an SSE block by collecting all "data:" lines.
+ * @param block - SSE block text to parse
+ * @returns Concatenated data lines from the block
+ */
 export function dataPayloadFromSseBlock(block: string): string {
   const lines = block.split("\n");
   const dataLines: string[] = [];
@@ -34,6 +41,11 @@ export type TinyFishSseEvent = {
   [key: string]: unknown;
 };
 
+/**
+ * Attempts to parse SSE data as JSON, returning a RAW event if parsing fails.
+ * @param data - Data string to parse
+ * @returns Parsed event object or null if data is empty
+ */
 export function tryParseEventJson(data: string): TinyFishSseEvent | null {
   if (!data.trim()) return null;
   try {

@@ -7,6 +7,12 @@ export type ParsePublicWebsiteResult =
   | { ok: true; normalized: string; hostname: string }
   | { ok: false; error: string };
 
+/**
+ * Checks if a hostname appears to be private or loopback address.
+ * Used to prevent users from adding local/private websites to the public map.
+ * @param hostname - Hostname to check
+ * @returns true if hostname is private/loopback, false otherwise
+ */
 function looksLikePrivateOrLoopbackHost(hostname: string): boolean {
   const h = hostname.toLowerCase();
   if (h === "localhost" || h === "127.0.0.1" || h === "[::1]") {
@@ -24,7 +30,13 @@ function looksLikePrivateOrLoopbackHost(hostname: string): boolean {
   return false;
 }
 
-/** Strict enough for a public company site; not a general-purpose URL parser. */
+/**
+ * Parses and validates a public website URL for the "Add your startup" flow.
+ * Ensures the URL is HTTPS, public (not local/private), and properly formatted.
+ * Strict enough for a public company site; not a general-purpose URL parser.
+ * @param input - User-provided URL string
+ * @returns ParsePublicWebsiteResult with normalized URL and hostname if valid, or error message
+ */
 export function parsePublicWebsiteUrl(input: string): ParsePublicWebsiteResult {
   const t = input.trim();
   if (!t) {
