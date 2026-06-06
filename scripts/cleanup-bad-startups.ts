@@ -9,6 +9,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { readFileSync } from "node:fs";
 import pg from "pg";
+import { logger } from "../lib/logger";
 
 const { Client } = pg;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -78,9 +79,9 @@ void (async () => {
     try {
       await client.connect();
       const { rowCount } = await client.query(deleteSql);
-      console.log("Applied DELETE via DATABASE_URL, rows removed:", rowCount);
+      logger.info(`Applied DELETE via DATABASE_URL, rows removed: ${rowCount}`);
     } catch (e) {
-      console.error("DATABASE_URL run failed:", e);
+      logger.error("DATABASE_URL run failed:", e);
       process.exit(1);
     } finally {
       await client.end();
@@ -98,10 +99,10 @@ void (async () => {
     }
     const toRemove = (rows || []).filter((r) => shouldDelete(r as { name: string; slug: string; website: string }));
     if (toRemove.length === 0) {
-      console.log("No matching startups to remove.");
+      logger.info("No matching startups to remove.");
       return;
     }
-    console.log("Deleting:", toRemove.map((r) => ({ id: r.id, name: r.name, website: (r as { website: string }).website })));
+    logger.info({ count: toRemove.length }, "Deleting startups");
     const { error: delErr } = await supabase.from("startups").delete().in(
       "id",
       toRemove.map((r) => r.id),
@@ -109,13 +110,9 @@ void (async () => {
     if (delErr) {
       throw new Error(delErr.message);
     }
-    console.log("Removed", toRemove.length, "row(s).");
+    logger.info({ count: toRemove.length }, "Removed startups");
   } catch (e) {
-    console.error(
-      (e as Error).message,
-      "\n\nSet DATABASE_URL to run the SQL file directly, or run the following in Supabase SQL editor:\n",
-    );
-    console.error(deleteSql);
+    logger.error({ error: (e as Error).message }, "Cleanup failed - set DATABASE_URL or run SQL manually");
     process.exit(1);
   }
 })();
