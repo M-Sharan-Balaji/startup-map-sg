@@ -7,6 +7,7 @@ import { StartupMap } from "@/components/StartupMap";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { TinyFishAnalyzePanel } from "@/components/TinyFishAnalyzePanel";
 import { STAGES, type Startup } from "@/lib/startup";
+import { initMythosFromUrl, reportMythosUsage } from "@/lib/mythosClient";
 
 type ApiResponse = {
   version: number;
@@ -29,6 +30,11 @@ export function StartupExplorer() {
   /** Clear after map finishes flying so the same id can be focused again later. */
   const [mapFocusStartupId, setMapFocusStartupId] = useState<string | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    // No-op if the app wasn't opened from Mythos (no `?lt=` param).
+    void initMythosFromUrl();
+  }, []);
 
   const load = useCallback(async (): Promise<Startup[] | null> => {
     setError(null);
@@ -77,6 +83,7 @@ export function StartupExplorer() {
         setSelected(found);
         setMapFocusStartupId(found.id);
       }
+      void reportMythosUsage(1, "startup-enrich");
     },
     [load],
   );
